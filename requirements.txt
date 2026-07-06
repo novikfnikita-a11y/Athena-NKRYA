@@ -1,0 +1,11 @@
+langgraph
+pydantic
+httpx
+python-dotenv
+tenacity
+loguru
+numpy
+langchain-google-genai
+langchain-openai
+langchain-core
+requests
