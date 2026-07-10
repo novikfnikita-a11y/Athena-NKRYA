@@ -1,11 +1,14 @@
+# граф и LLM оркестрация
 langgraph
-pydantic
-httpx
-python-dotenv
-tenacity
-loguru
-numpy
-langchain-google-genai
-langchain-openai
 langchain-core
+langchain-openai
+ 
+# конфигурация и валидация
+python-dotenv
+pydantic
+ 
+# HTTP-клиент к API НКРЯ
 requests
+ 
+# логирование
+loguru

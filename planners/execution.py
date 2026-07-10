@@ -41,6 +41,8 @@ def execution_planner_node(state: ResearchState):
         f"ОБЩАЯ ЦЕЛЬ (goal): {state.get('goal', 'Не задана')}\n"
         f"ГИПОТЕЗЫ (hypotheses): {state.get('hypotheses', [])}\n"
         f"ПЛАН ИССЛЕДОВАНИЯ (research_plan):\n{research_plan_str}\n\n"
+        f"РЕКОМЕНДОВАННЫЙ КОРПУС (recommended_corpus): {state.get('recommended_corpus', 'MAIN')}\n"
+        f"ОБОСНОВАНИЕ ВЫБОРА КОРПУСА: {state.get('corpus_reasoning', 'Не указано')}\n\n"
         f"УЖЕ ВЫПОЛНЕННЫЕ ДЕЙСТВИЯ (ИНСТРУМЕНТЫ): {past_actions_str}\n"
         f"УЖЕ УСТАНОВЛЕННЫЕ ФАКТЫ:\n{current_facts}\n"
     )

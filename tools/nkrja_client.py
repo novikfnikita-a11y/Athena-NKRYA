@@ -12,7 +12,8 @@ class NKRJAClient:
 
     def _make_get_request(self, endpoint: str, param_name: str, payload: dict) -> dict:
         url = f"{self.base_url}{endpoint}"
-        params = {param_name: json.dumps(payload)} if payload else {}
+        # Отключаем экранирование кириллицы
+        params = {param_name: json.dumps(payload, ensure_ascii=False)} if payload else {}
         response = requests.get(url, headers=self.headers, params=params)
         response.raise_for_status()
         return response.json() if response.text else {"status": "ok"}
@@ -48,12 +49,33 @@ class NKRJAClient:
         # очистка лемм и параметров от случайных пробелов
         return str(text).strip() if text else ""
 
-    def get_word_portrait(self, lemma: str) -> dict:
+    def get_word_portrait(
+            self,
+            lemma: str,
+            corpus: str,
+            resultType: list,
+            pos: str = None,
+            seed: int = None,
+            statFields: list = None,
+            similarCategories: list = None
+    ) -> dict:
+        # Базовая структура запроса в соответствии с требованиями бэкенда
         query_data = {
             "lemma": self._safe_string(lemma),
-            "corpus": {"type": "MAIN"},
-            "resultType": ["PORTRAIT_WORD_INFO", "PORTRAIT_STATS"]
+            "corpus": {"type": self._safe_corpus(corpus)},
+            "resultType": resultType
         }
+
+        # Динамически добавляем опциональные параметры, если их передал планировщик
+        if pos:
+            query_data["pos"] = str(pos).strip().upper()
+        if seed is not None:
+            query_data["seed"] = seed
+        if statFields:
+            query_data["statFields"] = statFields
+        if similarCategories:
+            query_data["similarCategories"] = similarCategories
+
         return self._make_get_request("/api/v1/word-portrait/", "query", query_data)
 
     def get_corpus_stats(self, corpus: str = "MAIN") -> dict:
