@@ -1,26 +1,23 @@
-# planners/planner.py
 import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from LLM.client import get_llm
 from LLM.prompts import PLANNER_SYSTEM_PROMPT
 from state.schema import ResearchState
 from tools.registry import CORPUS_TYPE_ENUM_DESCRIPTION
-
+from utils.trace import emit_trace
 
 def planner_node(state: ResearchState):
-    print("\n--- УЗЕЛ: Linguistic Task Planner (Запуск DeepSeek) ---")
+    print("\n--- УЗЕЛ: Linguistic Task Planner (Запуск ИИ) ---")
 
+    run_id = state.get("research_question", "default_run")
     llm = get_llm()
 
     system_prompt_ready = PLANNER_SYSTEM_PROMPT.format(
         corpus_registry=CORPUS_TYPE_ENUM_DESCRIPTION
     )
 
-    # извлекаем обратную связь от агрегатора из предыдущих итераций
     feedback = state.get("aggregator_reasoning", "")
 
-    # НОВОЕ: передаём модели информацию о накопленных фактах предыдущего цикла -
-    # это нужно ей, чтобы решить mode="research" или mode="chat"
     existing_facts = state.get("facts", [])
     existing_facts_str = (
         "\n".join([f"- {fact}" for fact in existing_facts])
@@ -30,9 +27,6 @@ def planner_node(state: ResearchState):
     existing_goal = state.get("goal", "Цель ещё не формулировалась")
 
     if feedback:
-        # Этот блок срабатывает ТОЛЬКО когда evidence_aggregator явно запросил
-        # needs_replanning=True (редкая красная петля на схеме) - в этом случае
-        # mode всегда должен остаться "research", мы просто пересматриваем методологию.
         user_content = (
             f"Исследовательский вопрос пользователя: {state['research_question']}\n\n"
             f"ОБРАТНАЯ СВЯЗЬ ОТ АНАЛИТИКА (ПРЕДЫДУЩИЙ ШАГ):\n{feedback}\n\n"
@@ -69,17 +63,29 @@ def planner_node(state: ResearchState):
         mode_reasoning = data.get("mode_reasoning", "Обоснование режима не предоставлено")
         print(f"[Planner] Определён режим: {mode} ({mode_reasoning})")
 
+        emit_trace(
+            node="planner",
+            event_type="thought",
+            content={"mode": mode, "reasoning": mode_reasoning},
+            run_id=run_id
+        )
+
         if mode == "chat":
-            # В режиме чата НЕ трогаем goal/hypotheses/research_plan/corpus -
-            # они остаются от предыдущего исследовательского цикла как есть,
-            # assistant_node ответит на основе уже накопленных facts.
-            return {
-                "mode": "chat",
-                "needs_replanning": False
-            }
+            return {"mode": "chat", "needs_replanning": False}
 
         recommended_corpus = data.get("recommended_corpus", "MAIN")
         corpus_reasoning = data.get("corpus_reasoning", "Обоснование не предоставлено")
+
+        emit_trace(
+            node="planner",
+            event_type="decision",
+            content={
+                "goal": data.get("goal"),
+                "recommended_corpus": recommended_corpus,
+                "corpus_reasoning": corpus_reasoning
+            },
+            run_id=run_id
+        )
 
         print(f"[Planner] Сформулирована цель: {data.get('goal')}")
         print(f"[Planner] Выдвинуто гипотез: {len(data.get('hypotheses', []))}")
