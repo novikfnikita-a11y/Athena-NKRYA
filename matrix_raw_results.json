@@ -1,442 +1,46 @@
 {
-  "MAIN|PORTRAIT_WORD_INFO": {
+  "PANCHRON|PORTRAIT_WORD_INFO": {
     "status": "OK",
     "detail": null
   },
-  "MAIN|PORTRAIT_CONCORDANCE": {
+  "PANCHRON|PORTRAIT_CONCORDANCE": {
     "status": "OK",
     "detail": null
   },
-  "MAIN|PORTRAIT_STATS": {
+  "PANCHRON|PORTRAIT_STATS": {
     "status": "OK",
     "detail": null
   },
-  "MAIN|PORTRAIT_SKETCH": {
-    "status": "OK",
-    "detail": null
-  },
-  "MAIN|PORTRAIT_FREQUENCY": {
-    "status": "OK",
-    "detail": null
-  },
-  "MAIN|PORTRAIT_SIMILAR": {
-    "status": "OK",
-    "detail": null
-  },
-  "MAIN|PORTRAIT_MORPHEME": {
-    "status": "OK",
-    "detail": null
-  },
-  "MAIN|PORTRAIT_WORDFORMS": {
-    "status": "OK",
-    "detail": null
-  },
-  "MAIN|PORTRAIT_COGNATES": {
-    "status": "EMPTY",
-    "detail": "поле 'cognatesData' пустое/отсутствует в ответе"
-  },
-  "MAIN|PORTRAIT_FIRST_MENTION": {
-    "status": "OK",
-    "detail": null
-  },
-  "MAIN|PORTRAIT_MEANING": {
-    "status": "EMPTY",
-    "detail": "поле 'meaningData' пустое/отсутствует в ответе"
-  },
-  "POETIC|PORTRAIT_WORD_INFO": {
-    "status": "OK",
-    "detail": null
-  },
-  "POETIC|PORTRAIT_CONCORDANCE": {
-    "status": "OK",
-    "detail": null
-  },
-  "POETIC|PORTRAIT_STATS": {
-    "status": "OK",
-    "detail": null
-  },
-  "POETIC|PORTRAIT_SKETCH": {
+  "PANCHRON|PORTRAIT_SKETCH": {
     "status": "ERROR_500",
     "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
   },
-  "POETIC|PORTRAIT_FREQUENCY": {
+  "PANCHRON|PORTRAIT_FREQUENCY": {
     "status": "ERROR_500",
     "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
   },
-  "POETIC|PORTRAIT_SIMILAR": {
+  "PANCHRON|PORTRAIT_SIMILAR": {
     "status": "ERROR_500",
     "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
   },
-  "POETIC|PORTRAIT_MORPHEME": {
+  "PANCHRON|PORTRAIT_MORPHEME": {
     "status": "ERROR_500",
     "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
   },
-  "POETIC|PORTRAIT_WORDFORMS": {
+  "PANCHRON|PORTRAIT_WORDFORMS": {
     "status": "ERROR_500",
     "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
   },
-  "POETIC|PORTRAIT_COGNATES": {
+  "PANCHRON|PORTRAIT_COGNATES": {
     "status": "ERROR_500",
     "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
   },
-  "POETIC|PORTRAIT_FIRST_MENTION": {
+  "PANCHRON|PORTRAIT_FIRST_MENTION": {
     "status": "EMPTY",
     "detail": "поле 'firstMentionData' пустое/отсутствует в ответе"
   },
-  "POETIC|PORTRAIT_MEANING": {
+  "PANCHRON|PORTRAIT_MEANING": {
     "status": "ERROR_500",
     "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
-  },
-  "SPOKEN|PORTRAIT_WORD_INFO": {
-    "status": "OK",
-    "detail": null
-  },
-  "SPOKEN|PORTRAIT_CONCORDANCE": {
-    "status": "OK",
-    "detail": null
-  },
-  "SPOKEN|PORTRAIT_STATS": {
-    "status": "OK",
-    "detail": null
-  },
-  "SPOKEN|PORTRAIT_SKETCH": {
-    "status": "OK",
-    "detail": null
-  },
-  "SPOKEN|PORTRAIT_FREQUENCY": {
-    "status": "OK",
-    "detail": null
-  },
-  "SPOKEN|PORTRAIT_SIMILAR": {
-    "status": "EMPTY",
-    "detail": "поле 'similarData' пустое/отсутствует в ответе"
-  },
-  "SPOKEN|PORTRAIT_MORPHEME": {
-    "status": "ERROR_500",
-    "detail": "Internal Server Error"
-  },
-  "SPOKEN|PORTRAIT_WORDFORMS": {
-    "status": "EMPTY",
-    "detail": "поле 'wordformsData' пустое/отсутствует в ответе"
-  },
-  "SPOKEN|PORTRAIT_COGNATES": {
-    "status": "EMPTY",
-    "detail": "поле 'cognatesData' пустое/отсутствует в ответе"
-  },
-  "SPOKEN|PORTRAIT_FIRST_MENTION": {
-    "status": "EMPTY",
-    "detail": "поле 'firstMentionData' пустое/отсутствует в ответе"
-  },
-  "SPOKEN|PORTRAIT_MEANING": {
-    "status": "EMPTY",
-    "detail": "поле 'meaningData' пустое/отсутствует в ответе"
-  },
-  "OLD_RUS|PORTRAIT_WORD_INFO": {
-    "status": "OK",
-    "detail": null
-  },
-  "OLD_RUS|PORTRAIT_CONCORDANCE": {
-    "status": "OK",
-    "detail": null
-  },
-  "OLD_RUS|PORTRAIT_STATS": {
-    "status": "ERROR_422",
-    "detail": "{\"message\": \"\\u0417\\u0430\\u0434\\u0430\\u043d \\u043d\\u0435\\u043a\\u043e\\u0440\\u0440\\u0435\\u043a\\u0442\\u043d\\u044b\\u0439 \\u0437\\u0430\\u043f\\u0440\\u043e\\u0441. \\u041f\\u043e\\u043f\\u0440\\u043e\\u0431\\u0443\\u0439\\u0442\\u0435 \\u0438\\u0437\\u043c\\u0435\\u043d\\u0438\\u0442\\u044c \\u043f\\u043e\\u0438\\u0441\\u043a.\"}"
-  },
-  "OLD_RUS|PORTRAIT_SKETCH": {
-    "status": "OK",
-    "detail": null
-  },
-  "OLD_RUS|PORTRAIT_FREQUENCY": {
-    "status": "OK",
-    "detail": null
-  },
-  "OLD_RUS|PORTRAIT_SIMILAR": {
-    "status": "EMPTY",
-    "detail": "поле 'similarData' пустое/отсутствует в ответе"
-  },
-  "OLD_RUS|PORTRAIT_MORPHEME": {
-    "status": "ERROR_500",
-    "detail": "Internal Server Error"
-  },
-  "OLD_RUS|PORTRAIT_WORDFORMS": {
-    "status": "OK",
-    "detail": null
-  },
-  "OLD_RUS|PORTRAIT_COGNATES": {
-    "status": "EMPTY",
-    "detail": "поле 'cognatesData' пустое/отсутствует в ответе"
-  },
-  "OLD_RUS|PORTRAIT_FIRST_MENTION": {
-    "status": "OK",
-    "detail": null
-  },
-  "OLD_RUS|PORTRAIT_MEANING": {
-    "status": "EMPTY",
-    "detail": "поле 'meaningData' пустое/отсутствует в ответе"
-  },
-  "MID_RUS|PORTRAIT_WORD_INFO": {
-    "status": "OK",
-    "detail": null
-  },
-  "MID_RUS|PORTRAIT_CONCORDANCE": {
-    "status": "OK",
-    "detail": null
-  },
-  "MID_RUS|PORTRAIT_STATS": {
-    "status": "OK",
-    "detail": null
-  },
-  "MID_RUS|PORTRAIT_SKETCH": {
-    "status": "OK",
-    "detail": null
-  },
-  "MID_RUS|PORTRAIT_FREQUENCY": {
-    "status": "OK",
-    "detail": null
-  },
-  "MID_RUS|PORTRAIT_SIMILAR": {
-    "status": "OK",
-    "detail": null
-  },
-  "MID_RUS|PORTRAIT_MORPHEME": {
-    "status": "ERROR_500",
-    "detail": "Internal Server Error"
-  },
-  "MID_RUS|PORTRAIT_WORDFORMS": {
-    "status": "EMPTY",
-    "detail": "поле 'wordformsData' пустое/отсутствует в ответе"
-  },
-  "MID_RUS|PORTRAIT_COGNATES": {
-    "status": "EMPTY",
-    "detail": "поле 'cognatesData' пустое/отсутствует в ответе"
-  },
-  "MID_RUS|PORTRAIT_FIRST_MENTION": {
-    "status": "OK",
-    "detail": null
-  },
-  "MID_RUS|PORTRAIT_MEANING": {
-    "status": "EMPTY",
-    "detail": "поле 'meaningData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_WORD_INFO": {
-    "status": "EMPTY",
-    "detail": "поле 'propsData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_CONCORDANCE": {
-    "status": "EMPTY",
-    "detail": "поле 'concordanceData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_STATS": {
-    "status": "ERROR_422",
-    "detail": "{\"message\": \"\\u0417\\u0430\\u0434\\u0430\\u043d \\u043d\\u0435\\u043a\\u043e\\u0440\\u0440\\u0435\\u043a\\u0442\\u043d\\u044b\\u0439 \\u0437\\u0430\\u043f\\u0440\\u043e\\u0441. \\u041f\\u043e\\u043f\\u0440\\u043e\\u0431\\u0443\\u0439\\u0442\\u0435 \\u0438\\u0437\\u043c\\u0435\\u043d\\u0438\\u0442\\u044c \\u043f\\u043e\\u0438\\u0441\\u043a.\"}"
-  },
-  "BIRCHBARK|PORTRAIT_SKETCH": {
-    "status": "EMPTY",
-    "detail": "поле 'sketchData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_FREQUENCY": {
-    "status": "EMPTY",
-    "detail": "поле 'frequencyData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_SIMILAR": {
-    "status": "EMPTY",
-    "detail": "поле 'similarData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_MORPHEME": {
-    "status": "EMPTY",
-    "detail": "поле 'morphemeData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_WORDFORMS": {
-    "status": "EMPTY",
-    "detail": "поле 'wordformsData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_COGNATES": {
-    "status": "EMPTY",
-    "detail": "поле 'cognatesData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_FIRST_MENTION": {
-    "status": "EMPTY",
-    "detail": "поле 'firstMentionData' пустое/отсутствует в ответе"
-  },
-  "BIRCHBARK|PORTRAIT_MEANING": {
-    "status": "EMPTY",
-    "detail": "поле 'meaningData' пустое/отсутствует в ответе"
-  },
-  "BLOGS|PORTRAIT_WORD_INFO": {
-    "status": "OK",
-    "detail": null
-  },
-  "BLOGS|PORTRAIT_CONCORDANCE": {
-    "status": "OK",
-    "detail": null
-  },
-  "BLOGS|PORTRAIT_STATS": {
-    "status": "OK",
-    "detail": null
-  },
-  "BLOGS|PORTRAIT_SKETCH": {
-    "status": "ERROR_500",
-    "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
-  },
-  "BLOGS|PORTRAIT_FREQUENCY": {
-    "status": "ERROR_500",
-    "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
-  },
-  "BLOGS|PORTRAIT_SIMILAR": {
-    "status": "ERROR_500",
-    "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
-  },
-  "BLOGS|PORTRAIT_MORPHEME": {
-    "status": "ERROR_500",
-    "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
-  },
-  "BLOGS|PORTRAIT_WORDFORMS": {
-    "status": "ERROR_500",
-    "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
-  },
-  "BLOGS|PORTRAIT_COGNATES": {
-    "status": "ERROR_500",
-    "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
-  },
-  "BLOGS|PORTRAIT_FIRST_MENTION": {
-    "status": "EMPTY",
-    "detail": "поле 'firstMentionData' пустое/отсутствует в ответе"
-  },
-  "BLOGS|PORTRAIT_MEANING": {
-    "status": "ERROR_500",
-    "detail": "{\"message\": \"\\u0418\\u0437\\u0432\\u0438\\u043d\\u0438\\u0442\\u0435, \\u0447\\u0442\\u043e-\\u0442\\u043e \\u043f\\u043e\\u0448\\u043b\\u043e \\u043d\\u0435 \\u0442\\u0430\\u043a\"}"
-  },
-  "GICR|PORTRAIT_WORD_INFO": {
-    "status": "OK",
-    "detail": null
-  },
-  "GICR|PORTRAIT_CONCORDANCE": {
-    "status": "OK",
-    "detail": null
-  },
-  "GICR|PORTRAIT_STATS": {
-    "status": "OK",
-    "detail": null
-  },
-  "GICR|PORTRAIT_SKETCH": {
-    "status": "OK",
-    "detail": null
-  },
-  "GICR|PORTRAIT_FREQUENCY": {
-    "status": "OK",
-    "detail": null
-  },
-  "GICR|PORTRAIT_SIMILAR": {
-    "status": "EMPTY",
-    "detail": "поле 'similarData' пустое/отсутствует в ответе"
-  },
-  "GICR|PORTRAIT_MORPHEME": {
-    "status": "ERROR_500",
-    "detail": "Internal Server Error"
-  },
-  "GICR|PORTRAIT_WORDFORMS": {
-    "status": "EMPTY",
-    "detail": "поле 'wordformsData' пустое/отсутствует в ответе"
-  },
-  "GICR|PORTRAIT_COGNATES": {
-    "status": "EMPTY",
-    "detail": "поле 'cognatesData' пустое/отсутствует в ответе"
-  },
-  "GICR|PORTRAIT_FIRST_MENTION": {
-    "status": "EMPTY",
-    "detail": "поле 'firstMentionData' пустое/отсутствует в ответе"
-  },
-  "GICR|PORTRAIT_MEANING": {
-    "status": "EMPTY",
-    "detail": "поле 'meaningData' пустое/отсутствует в ответе"
-  },
-  "CLASSICS|PORTRAIT_WORD_INFO": {
-    "status": "OK",
-    "detail": null
-  },
-  "CLASSICS|PORTRAIT_CONCORDANCE": {
-    "status": "OK",
-    "detail": null
-  },
-  "CLASSICS|PORTRAIT_STATS": {
-    "status": "OK",
-    "detail": null
-  },
-  "CLASSICS|PORTRAIT_SKETCH": {
-    "status": "OK",
-    "detail": null
-  },
-  "CLASSICS|PORTRAIT_FREQUENCY": {
-    "status": "OK",
-    "detail": null
-  },
-  "CLASSICS|PORTRAIT_SIMILAR": {
-    "status": "OK",
-    "detail": null
-  },
-  "CLASSICS|PORTRAIT_MORPHEME": {
-    "status": "ERROR_500",
-    "detail": "Internal Server Error"
-  },
-  "CLASSICS|PORTRAIT_WORDFORMS": {
-    "status": "EMPTY",
-    "detail": "поле 'wordformsData' пустое/отсутствует в ответе"
-  },
-  "CLASSICS|PORTRAIT_COGNATES": {
-    "status": "EMPTY",
-    "detail": "поле 'cognatesData' пустое/отсутствует в ответе"
-  },
-  "CLASSICS|PORTRAIT_FIRST_MENTION": {
-    "status": "EMPTY",
-    "detail": "поле 'firstMentionData' пустое/отсутствует в ответе"
-  },
-  "CLASSICS|PORTRAIT_MEANING": {
-    "status": "EMPTY",
-    "detail": "поле 'meaningData' пустое/отсутствует в ответе"
-  },
-  "KIDS|PORTRAIT_WORD_INFO": {
-    "status": "OK",
-    "detail": null
-  },
-  "KIDS|PORTRAIT_CONCORDANCE": {
-    "status": "OK",
-    "detail": null
-  },
-  "KIDS|PORTRAIT_STATS": {
-    "status": "OK",
-    "detail": null
-  },
-  "KIDS|PORTRAIT_SKETCH": {
-    "status": "OK",
-    "detail": null
-  },
-  "KIDS|PORTRAIT_FREQUENCY": {
-    "status": "OK",
-    "detail": null
-  },
-  "KIDS|PORTRAIT_SIMILAR": {
-    "status": "OK",
-    "detail": null
-  },
-  "KIDS|PORTRAIT_MORPHEME": {
-    "status": "ERROR_500",
-    "detail": "Internal Server Error"
-  },
-  "KIDS|PORTRAIT_WORDFORMS": {
-    "status": "EMPTY",
-    "detail": "поле 'wordformsData' пустое/отсутствует в ответе"
-  },
-  "KIDS|PORTRAIT_COGNATES": {
-    "status": "EMPTY",
-    "detail": "поле 'cognatesData' пустое/отсутствует в ответе"
-  },
-  "KIDS|PORTRAIT_FIRST_MENTION": {
-    "status": "EMPTY",
-    "detail": "поле 'firstMentionData' пустое/отсутствует в ответе"
-  },
-  "KIDS|PORTRAIT_MEANING": {
-    "status": "EMPTY",
-    "detail": "поле 'meaningData' пустое/отсутствует в ответе"
   }
 }

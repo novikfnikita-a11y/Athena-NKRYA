@@ -20,6 +20,14 @@ import requests
 
 from tools.nkrja_client import NKRJAClient
 
+try:
+    # Если whitelist уже сгенерирован прошлым прогоном - используем его,
+    # чтобы для режима --preset schema не гадать корпус, а сразу брать
+    # тот, что уже подтверждён как OK.
+    from whitelist_generated import RESULTTYPE_CORPUS_WHITELIST as _KNOWN_WHITELIST
+except ImportError:
+    _KNOWN_WHITELIST = {}
+
 #
 # Справочники (синхронизированы с tools/registry.py)
 
@@ -32,10 +40,17 @@ ALL_CORPORA = [
 
 # Корпуса, которые реально фигурируют в логике выбора PLANNER_SYSTEM_PROMPT
 # (см. LLM/prompts.py). Остальные 14 - экзотика, которую planner практически
+#
+# ФИКС: PANCHRON раньше отсутствовал здесь, хотя он есть в CORPUS_TYPE_ENUM_DESCRIPTION
+# как "диахронический корпус для анализа изменений сквозь века" - и LLM реально
+# выбирает его для вопросов об этимологии/истории слова (см. planner.py). Из-за
+# отсутствия PANCHRON в этом списке whitelist_generated.py генерировался без него
+# вообще, и api_orchestrator.py резал ЛЮБОЙ resultType для corpus=PANCHRON, даже
+# те, что бэкенд реально поддерживает (см. matrix_raw_results.json).
 
 CORE_CORPORA = [
     "MAIN", "POETIC", "SPOKEN", "OLD_RUS", "MID_RUS",
-    "BIRCHBARK", "BLOGS", "GICR", "CLASSICS", "KIDS",
+    "BIRCHBARK", "BLOGS", "GICR", "CLASSICS", "KIDS", "PANCHRON",
 ]
 
 
@@ -78,6 +93,12 @@ DEBUG = False  # поставьте True, чтобы печатать сырой
 
 RAW_RESULTS_FILE = "matrix_raw_results.json"
 WHITELIST_OUTPUT_FILE = "whitelist_generated.py"
+RAW_DUMPS_DIR = "raw_dumps"
+
+# По данным openapi_NKRYA.py у PortraitResult вообще нет полей cognatesData/meaningData -
+# это не "у леммы нет данных", а не реализовано на бэкенде в этой версии API.
+# Пробовать их в режиме schema бессмысленно, только жжём rate-limit budget.
+DEAD_RESULT_TYPES = ["PORTRAIT_COGNATES", "PORTRAIT_MEANING"]
 
 
 
@@ -92,9 +113,8 @@ def probe_pair(
     backoff_base_429: float = 20.0,
     retry_5xx: int = 1,
     retry_5xx_wait: float = 4.0,
+    dump_raw_dir: Path | None = None,
 ) -> dict:
-
-
 
     extra = EXTRA_PARAMS.get(result_type, {})
     attempt_429 = 0
@@ -137,6 +157,21 @@ def probe_pair(
 
         field = FIELD_BY_RESULT_TYPE.get(result_type)
         data = response.get(field) if isinstance(response, dict) else None
+
+        # НОВОЕ: сохраняем ПОЛНОЕ сырое тело ответа на диск, а не только факт
+        # наличия/отсутствия поля. Именно этого не хватало в предыдущем прогоне -
+        # matrix_raw_results.json содержал только status/detail, реальный JSON
+        # нигде не оседал, поэтому по нему нельзя было понять форму propsData/
+        # statsData/frequencyData/wordformsData/firstMentionData/sketchData -
+        # все они в openapi объявлены как "additionalProperties: true", то есть
+        # схема сама по себе не документирует их внутреннюю структуру.
+        if dump_raw_dir is not None and isinstance(response, dict):
+            dump_raw_dir.mkdir(parents=True, exist_ok=True)
+            dump_path = dump_raw_dir / f"{corpus}__{result_type}.json"
+            dump_path.write_text(
+                json.dumps(response, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
 
         if data:
             return {"status": "OK", "detail": None}
@@ -240,8 +275,12 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Построение матрицы совместимости corpus x resultType для get_word_portrait")
     parser.add_argument("--lemma", default="мать", help="Тестовая лемма (по умолчанию распространённое существительное)")
     parser.add_argument("--pos", default=None, help="Часть речи, если нужно зафиксировать (например 'S' для PORTRAIT_WORDFORMS)")
-    parser.add_argument("--preset", choices=["core", "all"], default="core",
-                         help="core = только корпуса, реально используемые planner'ом (10 шт, быстрее); all = все 24 корпуса из CorpusTypeEnum")
+    parser.add_argument("--preset", choices=["core", "all", "schema"], default="core",
+                         help="core = только корпуса, реально используемые planner'ом (10 шт, быстрее); "
+                              "all = все 24 корпуса из CorpusTypeEnum; "
+                              "schema = МИНИМАЛЬНЫЙ прогон для написания парсера: ровно один OK-корпус "
+                              "на каждый resultType (берётся из уже сгенерированного whitelist_generated.py, "
+                              "фоллбек - MAIN), мёртвые resultType (COGNATES/MEANING) пропускаются")
     parser.add_argument("--corpora", default=None, help="Явный список корпусов через запятую - переопределяет --preset")
     parser.add_argument("--result-types", default=None, help="Список resultType через запятую (по умолчанию - все)")
     parser.add_argument("--delay", type=float, default=2.0, help="Базовая пауза между запросами в секундах")
@@ -255,24 +294,62 @@ def parse_args():
     parser.add_argument("--resume", action="store_true", help="Продолжить с места, где сохранён matrix_raw_results.json, пропуская уже протестированные пары")
     parser.add_argument("--dry-run", action="store_true", help="Только показать план (сколько запросов, какие пары), не дёргать API")
     parser.add_argument("--output", default=RAW_RESULTS_FILE, help="Файл для сырых результатов")
+    parser.add_argument("--dump-raw", action="store_true",
+                         help="Сохранять ПОЛНОЕ тело каждого успешного (не EMPTY/ERROR) ответа в --dump-raw-dir. "
+                              "Именно это нужно, чтобы написать парсер под propsData/statsData/frequencyData/"
+                              "wordformsData/firstMentionData/sketchData - их форма не описана в openapi (additionalProperties: true).")
+    parser.add_argument("--dump-raw-dir", default=RAW_DUMPS_DIR, help="Папка для сырых JSON-дампов (используется вместе с --dump-raw)")
+    parser.add_argument("--include-dead", action="store_true",
+                         help="Всё равно пробовать PORTRAIT_COGNATES/PORTRAIT_MEANING в режиме --preset schema, "
+                             "хотя по openapi у PortraitResult нет соответствующих полей вообще (на случай, "
+                             "если бэкенд обновили и фичи наконец реализовали)")
     return parser.parse_args()
+
+
+def build_schema_pairs(include_dead: bool) -> list[tuple[str, str]]:
+    """
+    Строит МИНИМАЛЬНЫЙ набор пар для снятия схемы: ровно один заведомо
+    OK-корпус на каждый resultType (по данным уже сгенерированного
+    whitelist_generated.py), вместо полного перебора corpus x resultType.
+    Не имеет смысла снимать схему одного и того же JSON-поля дважды
+    из разных корпусов - форма ответа не зависит от корпуса, зависит
+    только от resultType.
+    """
+    result_types = [rt for rt in ALL_RESULT_TYPES if include_dead or rt not in DEAD_RESULT_TYPES]
+
+    pairs = []
+    for rt in result_types:
+        known_ok = _KNOWN_WHITELIST.get(rt, [])
+        corpus = known_ok[0] if known_ok else "MAIN"
+        pairs.append((corpus, rt))
+    return pairs
 
 
 def main():
     args = parse_args()
 
-    if args.corpora:
-        corpora = args.corpora.split(",")
+    if args.preset == "schema":
+        corpora = None  # не используется в этом режиме, пары строятся отдельно
+        result_types = None
+        pairs = build_schema_pairs(include_dead=args.include_dead)
+        print("[preset=schema] Снимаем схему: по одному OK-корпусу на каждый resultType.")
+        if not args.include_dead:
+            print(f"[preset=schema] Пропущены заведомо мёртвые resultType (нет полей в PortraitResult): {DEAD_RESULT_TYPES}")
     else:
-        corpora = CORE_CORPORA if args.preset == "core" else ALL_CORPORA
-    result_types = args.result_types.split(",") if args.result_types else ALL_RESULT_TYPES
-    corpora = [c.strip().upper() for c in corpora]
-    result_types = [r.strip().upper() for r in result_types]
+        if args.corpora:
+            corpora = args.corpora.split(",")
+        else:
+            corpora = CORE_CORPORA if args.preset == "core" else ALL_CORPORA
+        result_types = args.result_types.split(",") if args.result_types else ALL_RESULT_TYPES
+        corpora = [c.strip().upper() for c in corpora]
+        result_types = [r.strip().upper() for r in result_types]
+        pairs = [(c, rt) for c in corpora for rt in result_types]
 
-    pairs = [(c, rt) for c in corpora for rt in result_types]
     print(f"Запланировано пар (corpus x resultType): {len(pairs)}")
     print(f"Лемма: {args.lemma!r} | pos: {args.pos!r} | preset: {args.preset}")
     print(f"delay: {args.delay}s (+jitter до {args.jitter}s) | батч-пауза {args.batch_pause}s каждые {args.batch_size} запросов")
+    if args.dump_raw:
+        print(f"[dump-raw] Сырые тела ответов будут сохранены в: {args.dump_raw_dir}/")
     est_seconds = len(pairs) * (args.delay + args.jitter / 2) + (len(pairs) / args.batch_size) * args.batch_pause
     print(f"Ориентировочное время прогона (без учёта 429-бэкоффов): ~{est_seconds / 60:.1f} мин\n")
 
@@ -297,6 +374,8 @@ def main():
         print("[!] Продолжаем на свой страх и риск...\n")
         client = NKRJAClient()
 
+    dump_raw_dir = Path(args.dump_raw_dir) if args.dump_raw else None
+
     done_count = 0
     try:
         for corpus, result_type in pairs:
@@ -310,6 +389,7 @@ def main():
                 client, corpus, result_type, args.lemma, args.pos,
                 max_retries_429=args.max_retries_429, backoff_base_429=args.backoff_base,
                 retry_5xx=args.retry_5xx, retry_5xx_wait=args.retry_5xx_wait,
+                dump_raw_dir=dump_raw_dir,
             )
             results[key] = res
             print(f"{res['status']}" + (f" ({res['detail'][:80]})" if res.get("detail") else ""))
@@ -329,12 +409,15 @@ def main():
     finally:
         save_results(results, output_path)
         print(f"\nСырые результаты сохранены в {output_path}")
+        if args.dump_raw:
+            print(f"Сырые JSON-тела сохранены в {args.dump_raw_dir}/ (по одному файлу на corpus__resultType.json)")
 
-    print_matrix(results, corpora, result_types)
+    if args.preset != "schema":
+        print_matrix(results, corpora, result_types)
 
-    whitelist_path = Path(WHITELIST_OUTPUT_FILE)
-    generate_whitelist_file(results, result_types, args.lemma, whitelist_path)
-    print(f"Готовый словарь для tools/registry.py сохранён в {whitelist_path}")
+        whitelist_path = Path(WHITELIST_OUTPUT_FILE)
+        generate_whitelist_file(results, result_types, args.lemma, whitelist_path)
+        print(f"Готовый словарь для tools/registry.py сохранён в {whitelist_path}")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,21 @@
 from state.schema import ResearchState
 from tools.nkrja_client import NKRJAClient
 from tools.registry import CAPABILITY_REGISTRY
+from tools.evidence_compressor import compress_word_portrait_response
 from whitelist_generated import RESULTTYPE_CORPUS_WHITELIST
 from utils.trace import emit_trace
 
 client = NKRJAClient()
+
+# Действия, для которых есть детерминированный (без LLM) компрессор сырого
+# ответа - см. tools/evidence_compressor.py. Ключ - имя action, значение -
+# функция compress(raw_response) -> compact_dict. Пока покрыт только
+# get_word_portrait, т.к. только у него есть неоднородные xxxData поля,
+# требующие ужатия; остальные ручки (get_corpus_stats и т.д.) уже
+# достаточно компактны сами по себе.
+RESPONSE_COMPRESSORS = {
+    "get_word_portrait": compress_word_portrait_response,
+}
 
 
 def api_orchestrator_node(state: ResearchState):
@@ -130,6 +141,28 @@ def api_orchestrator_node(state: ResearchState):
             else:
                 result = handler()
 
+            # НОВОЕ: детерминированное (без LLM) сжатие сырого ответа перед
+            # тем, как он попадёт в evidence/контекст LLM - см. tools/evidence_compressor.py.
+            # Компрессор оборачиваем в свой try/except: ошибка парсинга не должна
+            # ронять всю пакетную обработку - в худшем случае просто получаем
+            # несжатый evidence вместо сжатого, а не потерянный узел графа.
+            raw_size = len(str(result))
+            compressor = RESPONSE_COMPRESSORS.get(action)
+            if compressor is not None:
+                try:
+                    result = compressor(result)
+                except Exception as compress_err:
+                    print(f"[Orchestrator] ВНИМАНИЕ: компрессор для '{action}' упал ({compress_err}), кладём сырой ответ как есть.")
+                    emit_trace(
+                        node="api_orchestrator",
+                        event_type="observation",
+                        content={"action": action, "status": "warning", "message": f"Компрессор упал: {compress_err}"},
+                        run_id=run_id
+                    )
+
+            compressed_size = len(str(result))
+            print(f"[Orchestrator] Успешно: {action} | размер ответа: {raw_size} -> {compressed_size} байт")
+
             emit_trace(
                 node="api_orchestrator",
                 event_type="observation",
@@ -143,7 +176,6 @@ def api_orchestrator_node(state: ResearchState):
                 "params": params,
                 "response": result
             })
-            print(f"[Orchestrator] Успешно: {action}")
 
         except Exception as e:
             print(f"[Orchestrator] Ошибка в {action}: {e}")

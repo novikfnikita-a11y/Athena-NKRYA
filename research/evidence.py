@@ -53,7 +53,7 @@ def evidence_aggregator_node(state: ResearchState):
     is_truncated = False
 
     for block in formatted_blocks:
-        if len(raw_data_str) + len(block) + 2 > 90000:
+        if len(raw_data_str) + len(block) + 2 > 300000:
             is_truncated = True
             break
         if raw_data_str:
