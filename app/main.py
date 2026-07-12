@@ -1,50 +1,45 @@
-import requests
+import os
+from typing import Any
 
-API_KEY = "6oq97zdSLzY:8adc6fca9cfd8b2a262e3f07d87143e5810e321d"
+os.environ["USE_LOCAL_CHECKPOINTER"] = "1"
+os.environ["LANGCHAIN_PROJECT"] = "nkrja-multiagent-agent"
 
-BASE_URL = "https://ruscorpora.ru"
-
-# спецификация требует тип авторизации Bearer
-headers = {
-    "Authorization": f"Bearer {API_KEY}",
-    "Content-Type": "application/json"
-}
-
-
-def check_authorization():
-    print("Проверка авторизации...")
-    url = f"{BASE_URL}/api/v1/auth/check-authenticated/"
-
-    response = requests.get(url, headers=headers)
-
-    if response.status_code == 200:
-        print("Успех! Статус авторизации:", response.json())
-    else:
-        print(f"Ошибка {response.status_code}: Не удалось авторизоваться.")
-        print(response.text)
-
-
-def test_word_portrait(target_lemma):
-    print(f"\nПолучаем портрет для леммы: '{target_lemma}'...")
-    url = f"{BASE_URL}/api/v1/word-portrait/"
-
-    params = {
-        "query": f'{{"lemma":"{target_lemma}","corpus":{{"type":"MAIN"}},"resultType":["PORTRAIT_WORD_INFO"]}}'
-    }
-
-    response = requests.get(url, headers=headers, params=params)
-
-    if response.status_code == 200:
-        print("Данные успешно получены!")
-        data = response.json()
-        possible_pos = data.get("possiblePos", [])
-        print(f"Доступные части речи для слова '{target_lemma}': {possible_pos}")
-    else:
-        print(f"Ошибка {response.status_code} при запросе портрета слова.")
-        print(response.text)
-
+from app.graph import app
 
 if __name__ == "__main__":
-    check_authorization()
+    #Настройки сессии для сохранения контекста вопросов в рамках одного thread_id
+    config = {
+        "configurable": {"thread_id": "cli-session-1"},
+        "metadata": {
+            "environment": "development",
+            "project": "nkrja-multiagent-agent",
+            "interface": "cli"
+        },
+        "tags": ["Interactive_Research_Session"]
+    }
 
-    test_word_portrait("печь")
+    print("Исследовательский агент НКРЯ. Введите вопрос (или 'exit' для выхода).\n")
+
+    while True:
+        user_question = input("Ваш запрос в Национальный Корпус Русского Языка: ").strip()
+        if user_question.lower() in ("exit", "quit", "выход"):
+            print("Сессия завершена.")
+            break
+        if not user_question:
+            continue
+
+        invoke_input: dict[str, Any] = {
+            "research_question": user_question,
+            "iteration_count": 0,
+            "is_goal_reached": False,
+            "needs_replanning": False,
+            "planned_actions": [],
+            "next_action": "",
+            "action_params": {}
+        }
+
+        final_output = app.invoke(invoke_input, config=config)
+
+        print("\n-ОТВЕТ АГЕНТА ")
+        print(final_output.get("final_response", "Ответ не сформирован"))
+        print("--------------------\n")

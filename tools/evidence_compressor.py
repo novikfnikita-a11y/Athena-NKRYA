@@ -2,7 +2,7 @@
 
 from typing import Any
 
-
+from langsmith import traceable
 
 
 def _extract_attr_values(value_list: list[dict]) -> list[Any]:
@@ -218,7 +218,7 @@ _PARSERS_BY_RESULT_TYPE = {
     "PORTRAIT_CONCORDANCE": lambda raw: parse_concordance(raw),
 }
 
-
+@traceable(run_type="tool", name="Compress_Word_Portrait")
 def compress_word_portrait_response(raw_response: dict, requested_result_types: list[str] | None = None) -> dict:
 
     if not isinstance(raw_response, dict):

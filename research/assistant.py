@@ -1,10 +1,13 @@
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
+
 from utils.logger import logger
 from state.schema import ResearchState
 
 from LLM.prompts import ASSISTANT_SYSTEM_PROMPT, ASSISTANT_USER_PROMPT_TEMPLATE
 from LLM.client import get_llm
-def assistant_node(state: ResearchState) -> dict:
+
+def assistant_node(state: ResearchState, config : RunnableConfig) -> dict:
     """
             Узел ассистента. Анализирует собранные факты и пишет финальный ответ.
             Использует клиент LangChain для корректной маршрутизации ролей.
@@ -40,7 +43,7 @@ def assistant_node(state: ResearchState) -> dict:
         logger.debug("Отправка сформированных сообщений в DeepSeek (через VseGPT)...")
 
         # invoke в LС принимает список сообщений и возвращает AIMessage
-        response = llm.invoke(messages)
+        response = llm.invoke(messages,config=config)
 
         # извлекаем чистое текстовое содержимое ответа
         final_answer = response.content

@@ -1,13 +1,13 @@
 import json
 import re
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 from LLM.client import get_llm
 from LLM.prompts import EVIDENCE_AGGREGATOR_SYSTEM_PROMPT
 from state.schema import ResearchState
 from tools.registry import get_registry_description
 
-
-def evidence_aggregator_node(state: ResearchState):
+def evidence_aggregator_node(state: ResearchState, config : RunnableConfig):
     print("\n--- УЗЕЛ: EVIDENCE AGGREGATOR ---")
 
     if not state.get("evidence"):
@@ -91,7 +91,7 @@ def evidence_aggregator_node(state: ResearchState):
     reasoning = "Обоснование не сформировано"
 
     try:
-        response = llm.invoke(messages)
+        response = llm.invoke(messages, config = config)
         content = response.content.strip()
 
         json_match = re.search(r'\{.*}', content, re.DOTALL)

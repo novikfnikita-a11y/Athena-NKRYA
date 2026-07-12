@@ -4,20 +4,15 @@ from tools.registry import CAPABILITY_REGISTRY
 from tools.evidence_compressor import compress_word_portrait_response
 from whitelist_generated import RESULTTYPE_CORPUS_WHITELIST
 from utils.trace import emit_trace
+from langsmith import traceable  # НОВОЕ: Для параллельного логирования шага в LangSmith
 
 client = NKRJAClient()
 
-# Действия, для которых есть детерминированный (без LLM) компрессор сырого
-# ответа - см. tools/evidence_compressor.py. Ключ - имя action, значение -
-# функция compress(raw_response) -> compact_dict. Пока покрыт только
-# get_word_portrait, т.к. только у него есть неоднородные xxxData поля,
-# требующие ужатия; остальные ручки (get_corpus_stats и т.д.) уже
-# достаточно компактны сами по себе.
 RESPONSE_COMPRESSORS = {
     "get_word_portrait": compress_word_portrait_response,
 }
 
-
+# НОВОЕ: Оборачиваем выполнение узла. Локальный emit_trace и облачный LangSmith теперь пишут параллельно.
 def api_orchestrator_node(state: ResearchState):
     """
     Пакетный API Orchestrator с защитным слоем фильтрации несовместимых типов.
@@ -52,12 +47,12 @@ def api_orchestrator_node(state: ResearchState):
             corpus = params.get("corpus", "MAIN")
             original_types = params.get("resultType", [])
 
-            #оставляем только те типы, для которых текущий корпус находится в белом списке
             valid_types = [rt for rt in original_types if corpus in RESULTTYPE_CORPUS_WHITELIST.get(rt, [])]
             removed_types = set(original_types) - set(valid_types)
 
             if removed_types:
                 msg = f"Из запроса к корпусу '{corpus}' автоматически удалены неподдерживаемые бэкендом типы: {list(removed_types)}. Измените планирование вызова."
+                # Ваша локальная система SQLite
                 emit_trace(
                     node="api_orchestrator",
                     event_type="observation",
@@ -79,6 +74,7 @@ def api_orchestrator_node(state: ResearchState):
                 msg_err = f"Ошибка вызова: ни один из запрошенных типов {original_types} не применим к корпусу '{corpus}'."
                 print(f"[Orchestrator] Вызов отменен: {msg_err}")
 
+                # Ваша локальная система SQLite
                 emit_trace(
                     node="api_orchestrator",
                     event_type="observation",
@@ -100,6 +96,7 @@ def api_orchestrator_node(state: ResearchState):
             msg_missing = f"Инструмент '{action}' отсутствует в Capability Registry."
             print(f"[Orchestrator] Ошибка: {msg_missing}")
 
+            # Ваша локальная система SQLite
             emit_trace(
                 node="api_orchestrator",
                 event_type="observation",
@@ -119,6 +116,7 @@ def api_orchestrator_node(state: ResearchState):
             msg_unimplemented = f"Метод '{action}' ещё не реализован в NKRJAClient"
             print(f"[Orchestrator] Ошибка: {msg_unimplemented}")
 
+            # Ваша локальная система SQLite
             emit_trace(
                 node="api_orchestrator",
                 event_type="observation",
@@ -141,11 +139,6 @@ def api_orchestrator_node(state: ResearchState):
             else:
                 result = handler()
 
-            # НОВОЕ: детерминированное (без LLM) сжатие сырого ответа перед
-            # тем, как он попадёт в evidence/контекст LLM - см. tools/evidence_compressor.py.
-            # Компрессор оборачиваем в свой try/except: ошибка парсинга не должна
-            # ронять всю пакетную обработку - в худшем случае просто получаем
-            # несжатый evidence вместо сжатого, а не потерянный узел графа.
             raw_size = len(str(result))
             compressor = RESPONSE_COMPRESSORS.get(action)
             if compressor is not None:
@@ -153,6 +146,7 @@ def api_orchestrator_node(state: ResearchState):
                     result = compressor(result)
                 except Exception as compress_err:
                     print(f"[Orchestrator] ВНИМАНИЕ: компрессор для '{action}' упал ({compress_err}), кладём сырой ответ как есть.")
+                    # Ваша локальная система SQLite
                     emit_trace(
                         node="api_orchestrator",
                         event_type="observation",
@@ -163,6 +157,7 @@ def api_orchestrator_node(state: ResearchState):
             compressed_size = len(str(result))
             print(f"[Orchestrator] Успешно: {action} | размер ответа: {raw_size} -> {compressed_size} байт")
 
+            # Ваша локальная система SQLite
             emit_trace(
                 node="api_orchestrator",
                 event_type="observation",
@@ -180,6 +175,7 @@ def api_orchestrator_node(state: ResearchState):
         except Exception as e:
             print(f"[Orchestrator] Ошибка в {action}: {e}")
 
+            # Ваша локальная система SQLite
             emit_trace(
                 node="api_orchestrator",
                 event_type="observation",

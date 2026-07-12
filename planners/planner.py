@@ -5,6 +5,7 @@ from LLM.prompts import PLANNER_SYSTEM_PROMPT
 from state.schema import ResearchState
 from tools.registry import CORPUS_TYPE_ENUM_DESCRIPTION
 from utils.trace import emit_trace
+from langsmith import traceable
 
 def planner_node(state: ResearchState):
     print("\n--- УЗЕЛ: Linguistic Task Planner (Запуск ИИ) ---")

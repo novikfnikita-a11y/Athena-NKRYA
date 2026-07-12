@@ -1,13 +1,14 @@
 import json
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
+
 from LLM.client import get_llm
 from LLM.prompts import EXECUTION_PLANNER_SYSTEM_PROMPT
 from state.schema import ResearchState
 from tools.registry import get_registry_description
 from utils.trace import emit_trace
 
-
-def execution_planner_node(state: ResearchState):
+def execution_planner_node(state: ResearchState, config : RunnableConfig):
     print("\n--- УЗЕЛ: Execution Planner (Выбор инструмента) ---")
     run_id = state.get("research_question", "default_run")
     llm = get_llm()
@@ -72,7 +73,8 @@ def execution_planner_node(state: ResearchState):
     ]
 
     try:
-        response = llm.invoke(messages)
+
+        response = llm.invoke(messages, config=config)
         clean_content = response.content.strip().replace("```json", "").replace("```", "")
         data = json.loads(clean_content)
 
