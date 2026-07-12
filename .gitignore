@@ -8,3 +8,7 @@ __pycache__/
 *.log
 .idea/
 .vscode/
+.langgraph_api/
+*.db
+app/*.db
+raw_dumps/

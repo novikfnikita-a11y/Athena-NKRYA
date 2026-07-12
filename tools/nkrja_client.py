@@ -1,6 +1,7 @@
 import requests
 import json
 from app.config import NKRJA_API_KEY
+from langsmith import traceable  # НОВОЕ: Импорт трейсера для низкоуровневых запросов
 
 class NKRJAClient:
     def __init__(self):
@@ -10,14 +11,17 @@ class NKRJAClient:
             "Content-Type": "application/json"
         }
 
+    # НОВОЕ: Автоматически отправляет параметры GET-запроса и ответ в дашборд
+    @traceable(run_type="tool", name="NKRJA_HTTP_GET")
     def _make_get_request(self, endpoint: str, param_name: str, payload: dict) -> dict:
         url = f"{self.base_url}{endpoint}"
-        # Отключаем экранирование кириллицы
         params = {param_name: json.dumps(payload, ensure_ascii=False)} if payload else {}
         response = requests.get(url, headers=self.headers, params=params)
         response.raise_for_status()
         return response.json() if response.text else {"status": "ok"}
 
+    # НОВОЕ: Автоматически отправляет параметры POST-запроса и ответ в дашборд
+    @traceable(run_type="tool", name="NKRJA_HTTP_POST")
     def _make_post_request(self, endpoint: str, payload: dict) -> dict:
         """вспомогательный метод для выполнения POST-запросов (требуется для конкорданса)"""
         url = f"{self.base_url}{endpoint}"
@@ -28,10 +32,7 @@ class NKRJAClient:
     def _safe_corpus(self, corpus: str) -> str:
         if not corpus:
             return "MAIN"
-
         c = str(corpus).strip().upper()
-
-        # легаси , тк в новом провайдере моделей уже есть метод подобный.
         mapping = {
             "ОСНОВНОЙ": "MAIN",
             "УСТНЫЙ": "SPOKEN",
@@ -41,12 +42,9 @@ class NKRJAClient:
             "ОБУЧАЮЩИЙ": "EDUCATIONAL",
             "МУЛЬТИМЕДИЙНЫЙ": "MULTIMEDIA"
         }
-
-
         return mapping.get(c, c)
 
     def _safe_string(self, text: str) -> str:
-        # очистка лемм и параметров от случайных пробелов
         return str(text).strip() if text else ""
 
     def get_word_portrait(
@@ -59,14 +57,11 @@ class NKRJAClient:
             statFields: list = None,
             similarCategories: list = None
     ) -> dict:
-        # Базовая структура запроса в соответствии с требованиями бэкенда
         query_data = {
             "lemma": self._safe_string(lemma),
             "corpus": {"type": self._safe_corpus(corpus)},
             "resultType": resultType
         }
-
-        # Динамически добавляем опциональные параметры, если их передал планировщик
         if pos:
             query_data["pos"] = str(pos).strip().upper()
         if seed is not None:
@@ -97,7 +92,6 @@ class NKRJAClient:
         return self._make_get_request("/api/v1/lex-gramm/search-form", "corpus", corpus_data)
 
     def get_simple_concordance(self, lemma: str, corpus: str = "MAIN") -> dict:
-
         payload = {
             "corpus": {
                 "type": self._safe_corpus(corpus)
@@ -121,7 +115,6 @@ class NKRJAClient:
                 ]
             }
         }
-
         return self._make_post_request("/api/v1/lex-gramm/concordance", payload)
 
     def get_corpus_config(self, corpus: str = "MAIN") -> dict:

@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "langgraph",
+    "langchain",
+    "langchain-core",
+    "langchain-community",
+    "langchain-openai",
+    "langsmith",
+    "python-dotenv",
+    "requests"
+  ],
+  "graphs": {
+    "nkrja_agent": "./app/graph.py:app"
+  },
+  "env": ".env"
+}
