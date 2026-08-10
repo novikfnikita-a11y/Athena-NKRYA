@@ -1,4 +1,4 @@
-"""Deterministic numeric fact extraction with evidence provenance."""
+"""Deterministic numeric and qualitative facts with evidence provenance."""
 
 from __future__ import annotations
 
@@ -53,6 +53,58 @@ def _walk_numbers(value: Any, path: tuple[str, ...] = ()) -> Iterable[tuple[str,
             yield from _walk_numbers(item, (*path, str(index)))
 
 
+_GROUPED_TEXT_KEYS = ("text", "word", "form")
+def _json_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep only JSON-compatible values from a bounded compressed record."""
+
+    result: dict[str, Any] = {}
+    for key in sorted(value, key=str):
+        item = value[key]
+        if item is None or isinstance(item, (str, int, float, bool)):
+            result[str(key)] = item
+        elif isinstance(item, Mapping):
+            result[str(key)] = _json_mapping(item)
+        elif isinstance(item, (list, tuple)):
+            result[str(key)] = [
+                _json_mapping(child) if isinstance(child, Mapping) else child
+                for child in item
+                if child is None or isinstance(child, (str, int, float, bool, Mapping))
+            ]
+    return result
+
+
+def _walk_text_observations(
+    value: Any,
+    path: tuple[str, ...] = (),
+) -> Iterable[tuple[str, Any]]:
+    if isinstance(value, Mapping):
+        grouped_key = next(
+            (
+                key
+                for key in _GROUPED_TEXT_KEYS
+                if isinstance(value.get(key), str) and value.get(key).strip()
+            ),
+            None,
+        )
+        if grouped_key is not None:
+            metric = ".".join(path) or grouped_key
+            yield f"{metric}.observation", _json_mapping(value)
+            return
+        for key in sorted(value, key=str):
+            item = value[key]
+            if isinstance(item, str) and item.strip():
+                yield ".".join((*path, str(key))), item
+            else:
+                yield from _walk_text_observations(item, (*path, str(key)))
+        return
+    if isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            yield from _walk_text_observations(item, (*path, str(index)))
+        return
+    if isinstance(value, str) and value.strip() and path:
+        yield ".".join(path), value
+
+
 def _unit_for(metric: str) -> str | None:
     leaf = metric.rsplit(".", 1)[-1].lower()
     return _UNITS_BY_NAME.get(leaf)
@@ -68,7 +120,12 @@ def extract_facts(
     *,
     max_facts: int = 200,
 ) -> FactExtractionResult:
-    """Extract numeric observations without asking an LLM to rewrite values."""
+    """Extract observable values without asking an LLM to rewrite them.
+
+    Qualitative records are limited to bounded compressor fields such as
+    concordance examples, collocates and word forms.  They remain ordinary
+    provenance-backed ``Fact`` objects rather than free-form LLM deductions.
+    """
 
     evidence = (
         artifact
@@ -90,6 +147,30 @@ def extract_facts(
         payload = payload["data"]
 
     facts: list[Fact] = []
+    qualitative_limit = min(max_facts, 50)
+    for metric, value in _walk_text_observations(payload):
+        if not metric:
+            continue
+        facts.append(
+            Fact(
+                research_id=evidence.research_id,
+                run_id=evidence.run_id,
+                branch_id=evidence.branch_id,
+                batch_id=evidence.batch_id,
+                action_id=evidence.action_id,
+                evidence_id=evidence.evidence_id,
+                fact_id=_fact_id(evidence.evidence_id, metric),
+                corpus=corpus,
+                lemma=lemma,
+                metric=metric,
+                value=value,
+                unit=None,
+                tool=evidence.tool,
+            )
+        )
+        if len(facts) >= qualitative_limit:
+            break
+
     for metric, value in _walk_numbers(payload):
         if not metric:
             continue

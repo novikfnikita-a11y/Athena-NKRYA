@@ -278,6 +278,46 @@ def test_fact_extraction_never_rewrites_numeric_values() -> None:
     assert result.interpretations == ()
 
 
+def test_concordance_examples_become_provenance_backed_facts() -> None:
+    compressed = compress_response(
+        "get_simple_concordance",
+        {
+            "examples": [
+                {
+                    "text": "Это проверяемый пример употребления.",
+                    "doc_title": "Тестовый документ",
+                    "doc_id": "doc-1",
+                    "date": "2020",
+                }
+            ]
+        },
+        params={"corpus": "MAIN", "lemma": "пример"},
+    )
+    evidence = EvidenceArtifact(
+        research_id="research-1",
+        run_id="run-1",
+        branch_id="branch-1",
+        batch_id="batch-1",
+        action_id="action-1",
+        evidence_id="evidence-concordance",
+        tool="get_simple_concordance",
+        source="NKRJA",
+        status="success",
+        params={"corpus": "MAIN", "lemma": "пример"},
+        payload=compressed,
+    )
+
+    result = extract_facts(evidence)
+    example = next(
+        fact for fact in result.facts if fact.metric.endswith("observation")
+    )
+
+    assert example.value["text"] == "Это проверяемый пример употребления."
+    assert example.value["doc_id"] == "doc-1"
+    assert example.evidence_id == "evidence-concordance"
+    assert example.tool == "get_simple_concordance"
+
+
 @pytest.mark.asyncio
 async def test_client_obeys_retry_after_for_429() -> None:
     calls = 0

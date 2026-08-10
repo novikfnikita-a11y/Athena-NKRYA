@@ -8,24 +8,33 @@ from planners.execution import execution_planner_node
 from tools.orchestrator import api_orchestrator_node
 from research.evidence import evidence_aggregator_node
 from research.assistant import assistant_node
+from research.errors import budget_terminal_node, error_node
 from research.lifecycle import start_turn_node
 from state.schema import ResearchState
 
-def mode_router(state: ResearchState) -> Literal["execution_planner", "assistant"]:
-    if state.get("mode") in {"chat", "error"}:
+def mode_router(state: ResearchState) -> Literal["execution_planner", "assistant", "errors"]:
+    if state.get("mode") == "error" or state.get("research_status") == "error":
+        print("\n[Router] Планирование завершилось контролируемой ошибкой.")
+        return "errors"
+    if state.get("mode") == "chat":
         print("\n[Router] сбор данных не требуется; переходим к финальному узлу.")
         return "assistant"
     print("\n[Router] mode=research: переходим к execution_planner.")
     return "execution_planner"
 
 
-def execution_router(state: ResearchState) -> Literal["api_orchestrator", "assistant"]:
+def execution_router(state: ResearchState) -> Literal["api_orchestrator", "assistant", "errors"]:
     if state.get("execution_status") == "error" or state.get("research_status") == "error":
         print("\n[Router] Исполнительный план завершился контролируемой ошибкой.")
+        return "errors"
+    if state.get("execution_status") == "complete":
+        print("\n[Router] Исполнительный план явно завершён; API-вызовы не нужны.")
         return "assistant"
     return "api_orchestrator"
 
-def evidence_router(state: ResearchState) -> Literal["assistant", "planner", "execution_planner"]:
+def evidence_router(state: ResearchState) -> Literal["assistant", "budget_terminal", "errors", "planner", "execution_planner"]:
+    if state.get("research_status") == "error":
+        return "errors"
     if (
         state.get("is_goal_reached")
         or state.get("aggregator_status") in {"complete", "error"}
@@ -40,8 +49,8 @@ def evidence_router(state: ResearchState) -> Literal["assistant", "planner", "ex
 
     if current_iterations >= max_iterations:
         print(f"\n[Router] ПРЕДОХРАНИТЕЛЬ: Лимит итераций ({max_iterations}) исчерпан!")
-        print("[Router] Принудительно завершаем исследование и передаем то, что успели собрать.")
-        return "assistant"
+        print("[Router] Фиксируем частичный результат и исчерпание бюджета.")
+        return "budget_terminal"
 
     if state.get("needs_replanning"):
         print(f"\n[Router] Аналитик требует ПОЛНОГО переосмысления методологии (шаг {current_iterations + 1}/{max_iterations}). Возврат к planner.")
@@ -58,6 +67,8 @@ workflow.add_node("execution_planner", execution_planner_node)
 workflow.add_node("api_orchestrator", api_orchestrator_node)
 workflow.add_node("evidence_aggregator", evidence_aggregator_node)
 workflow.add_node("assistant", assistant_node)
+workflow.add_node("errors", error_node)
+workflow.add_node("budget_terminal", budget_terminal_node)
 
 workflow.set_entry_point("lifecycle")
 workflow.add_edge("lifecycle", "planner")
@@ -67,7 +78,8 @@ workflow.add_conditional_edges(
     mode_router,
     {
         "execution_planner": "execution_planner",
-        "assistant": "assistant"
+        "assistant": "assistant",
+        "errors": "errors",
     }
 )
 
@@ -77,6 +89,7 @@ workflow.add_conditional_edges(
     {
         "api_orchestrator": "api_orchestrator",
         "assistant": "assistant",
+        "errors": "errors",
     },
 )
 workflow.add_edge("api_orchestrator", "evidence_aggregator")
@@ -86,12 +99,16 @@ workflow.add_conditional_edges(
     evidence_router,
     {
         "assistant": "assistant",
+        "budget_terminal": "budget_terminal",
+        "errors": "errors",
         "planner": "planner",
         "execution_planner": "execution_planner"
     }
 )
 
 workflow.add_edge("assistant", END)
+workflow.add_edge("errors", END)
+workflow.add_edge("budget_terminal", "assistant")
 
 # Условная компиляция графа:
 # Переменная будет равна "1" ТОЛЬКО если мы запускаем локальный main.py

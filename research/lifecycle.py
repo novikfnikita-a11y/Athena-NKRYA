@@ -141,6 +141,8 @@ def start_turn_node(
         "research_status": ResearchStatus.PLANNING,
         "mode": "research",
         "planner_route": "research",
+        "planner_reasoning": "",
+        "overall_goal": "",
         "goal": "",
         "research_plan": [],
         "current_step_index": 0,
@@ -148,6 +150,7 @@ def start_turn_node(
         "corpus_reasoning": "",
         "hypotheses": [],
         "open_questions": [],
+        "sub_goals": [],
         "iteration_count": 0,
         "research_started_at": time.time(),
         "budgets": {

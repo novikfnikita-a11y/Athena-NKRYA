@@ -21,8 +21,14 @@ def _research_input(question: str) -> dict[str, Any]:
 
 def _aggregator_state(**overrides: Any) -> dict[str, Any]:
     state: dict[str, Any] = {
+        "research_id": "research-current",
+        "run_id": "run-current",
+        "branch_id": "branch-current",
+        "batch_id": "batch-current",
         "research_question": "Почему меняется значение слова?",
         "goal": "Проверить изменение значения",
+        "research_plan": ["Проверить изменение значения"],
+        "recommended_corpus": "MAIN",
         "hypotheses": ["Контексты различаются"],
         "evidence": [
             {
@@ -37,8 +43,39 @@ def _aggregator_state(**overrides: Any) -> dict[str, Any]:
             {"action": "get_corpus_stats", "params": {"corpus": "MAIN"}}
         ],
         "iteration_count": 0,
+        "completed_actions": [],
     }
     state.update(overrides)
+    normalized_batch: list[dict[str, Any]] = []
+    generated_actions: list[dict[str, Any]] = []
+    for index, raw in enumerate(state.get("last_evidence_batch", []), 1):
+        item = dict(raw)
+        action_id = str(item.get("action_id") or f"action-current-{index}")
+        tool = str(item.get("tool") or item.get("action") or "get_corpus_stats")
+        item.setdefault("research_id", state["research_id"])
+        item.setdefault("run_id", state["run_id"])
+        item.setdefault("branch_id", state["branch_id"])
+        item.setdefault("batch_id", state["batch_id"])
+        item.setdefault("action_id", action_id)
+        item.setdefault("evidence_id", f"evidence-current-{index}")
+        item.setdefault("tool", tool)
+        item.setdefault("params", {"corpus": state["recommended_corpus"]})
+        normalized_batch.append(item)
+        generated_actions.append(
+            {
+                "research_id": state["research_id"],
+                "run_id": state["run_id"],
+                "branch_id": state["branch_id"],
+                "batch_id": state["batch_id"],
+                "action_id": action_id,
+                "tool": tool,
+                "params": item["params"],
+                "status": "succeeded",
+            }
+        )
+    state["last_evidence_batch"] = normalized_batch
+    if not state.get("completed_actions"):
+        state["completed_actions"] = generated_actions
     return state
 
 
@@ -139,20 +176,43 @@ def test_string_false_is_normalized_to_boolean_false(fake_llm: Any) -> None:
 
     fake_llm.queue(
         {
-            "new_facts": [],
-            "is_goal_reached": "false",
-            "needs_replanning": "false",
+            "status": "continue",
+            "progress_made": "false",
+            "covered_plan_steps": [],
+            "missing_plan_steps": [1],
+            "missing_information": ["Нужны дополнительные данные"],
+            "deductions": [],
+            "reasoning": "Данных пока недостаточно",
+        },
+        {
+            "status": "continue",
+            "progress_made": False,
+            "covered_plan_steps": [],
+            "missing_plan_steps": [1],
+            "missing_information": ["Нужны дополнительные данные"],
+            "deductions": [],
             "reasoning": "Данных пока недостаточно",
         }
     )
 
     update = evidence_module.evidence_aggregator_node(
-        _aggregator_state(),
+        _aggregator_state(
+            last_evidence_batch=[
+                {
+                    "source": "NKRJA",
+                    "action": "get_corpus_stats",
+                    "params": {"corpus": "MAIN"},
+                    "payload": {"documents": 100},
+                    "status": "success",
+                }
+            ]
+        ),
         config={},
     )
 
     assert update["is_goal_reached"] is False
     assert update["needs_replanning"] is False
+    assert len(fake_llm.calls) == 2
 
 
 def test_llm_observations_are_deductions_not_provenance_facts(
@@ -160,9 +220,12 @@ def test_llm_observations_are_deductions_not_provenance_facts(
 ) -> None:
     fake_llm.queue(
         {
-            "new_facts": ["Модель интерпретировала числовой результат как высокий"],
-            "is_goal_reached": True,
-            "needs_replanning": False,
+            "status": "complete",
+            "progress_made": True,
+            "covered_plan_steps": [1],
+            "missing_plan_steps": [],
+            "missing_information": [],
+            "deductions": ["Модель интерпретировала числовой результат как высокий"],
             "reasoning": "Интерпретация отделена от наблюдения",
         }
     )
@@ -196,49 +259,63 @@ def test_second_research_in_same_thread_does_not_mix_first_research(
     fake_llm.queue(
         {
             "mode": "research",
-            "mode_reasoning": "Первая самостоятельная задача",
+            "reasoning": "Первая самостоятельная задача",
             "goal": "FIRST_GOAL",
-            "hypotheses": ["FIRST_HYPOTHESIS"],
-            "research_plan": ["FIRST_STEP"],
-            "recommended_corpus": "MAIN",
-            "corpus_reasoning": "Первый корпус",
+            "sub_goals": [{
+                "goal": "FIRST_GOAL",
+                "corpus": "MAIN",
+                "corpus_reasoning": "Первый корпус",
+                "hypotheses": ["FIRST_HYPOTHESIS"],
+                "research_plan": ["FIRST_STEP"],
+            }],
         },
         {
-            "planned_actions": [
-                {"action": "get_corpus_stats", "params": {"corpus": "MAIN"}}
+            "status": "execute",
+            "actions": [
+                {"tool": "get_corpus_stats", "params": {"corpus": "MAIN"}, "depends_on": []}
             ],
             "reasoning": "Первый вызов",
         },
         {
-            "new_facts": ["FIRST_FACT"],
-            "is_goal_reached": True,
-            "needs_replanning": False,
+            "status": "complete",
+            "progress_made": True,
+            "covered_plan_steps": [1],
+            "missing_plan_steps": [],
+            "missing_information": [],
+            "deductions": ["FIRST_FACT"],
             "reasoning": "Первая задача завершена",
         },
         "FIRST_ANSWER",
         {
             "mode": "research",
-            "mode_reasoning": "Вторая самостоятельная задача",
+            "reasoning": "Вторая самостоятельная задача",
         },
         {
             "mode": "research",
-            "mode_reasoning": "Вторая самостоятельная задача",
+            "reasoning": "Вторая самостоятельная задача",
             "goal": "SECOND_GOAL",
-            "hypotheses": ["SECOND_HYPOTHESIS"],
-            "research_plan": ["SECOND_STEP"],
-            "recommended_corpus": "SPOKEN",
-            "corpus_reasoning": "Второй корпус",
+            "sub_goals": [{
+                "goal": "SECOND_GOAL",
+                "corpus": "SPOKEN",
+                "corpus_reasoning": "Второй корпус",
+                "hypotheses": ["SECOND_HYPOTHESIS"],
+                "research_plan": ["SECOND_STEP"],
+            }],
         },
         {
-            "planned_actions": [
-                {"action": "get_corpus_stats", "params": {"corpus": "SPOKEN"}}
+            "status": "execute",
+            "actions": [
+                {"tool": "get_corpus_stats", "params": {"corpus": "SPOKEN"}, "depends_on": []}
             ],
             "reasoning": "Второй вызов",
         },
         {
-            "new_facts": ["SECOND_FACT"],
-            "is_goal_reached": True,
-            "needs_replanning": False,
+            "status": "complete",
+            "progress_made": True,
+            "covered_plan_steps": [1],
+            "missing_plan_steps": [],
+            "missing_information": [],
+            "deductions": ["SECOND_FACT"],
             "reasoning": "Вторая задача завершена",
         },
         "SECOND_ANSWER",
@@ -260,10 +337,11 @@ def test_second_research_in_same_thread_does_not_mix_first_research(
 
     assert second_result["goal"] == "SECOND_GOAL"
     assert second_result["hypotheses"] == ["SECOND_HYPOTHESIS"]
-    assert second_result["facts"] == []
+    assert any(fact.get("value") == "SECOND_EVIDENCE" for fact in second_result["facts"])
+    assert all(fact.get("value") != "FIRST_EVIDENCE" for fact in second_result["facts"])
     assert second_result["deductions"] == ["SECOND_FACT"]
     assert all(
-        item.get("response", {}).get("marker") != "FIRST_EVIDENCE"
+        "FIRST_EVIDENCE" not in str(item.get("payload", item.get("response", {})))
         for item in second_result["evidence"]
     )
 
@@ -294,15 +372,19 @@ def test_safeguard_warning_is_preserved_in_aggregator_prompt(
     }
     fake_llm.queue(
         {
-            "new_facts": [],
-            "is_goal_reached": True,
-            "needs_replanning": False,
+            "status": "complete",
+            "progress_made": True,
+            "covered_plan_steps": [1],
+            "missing_plan_steps": [],
+            "missing_information": [],
+            "deductions": [],
             "reasoning": "Доступная часть обработана",
         }
     )
 
     evidence_module.evidence_aggregator_node(
         _aggregator_state(
+            recommended_corpus="SPOKEN",
             evidence=[warning, result],
             last_evidence_batch=[warning, result],
             planned_actions=[
@@ -333,8 +415,30 @@ def test_equal_questions_use_distinct_explicit_run_ids(
 
     monkeypatch.setattr(planner_module, "emit_trace", capture_trace)
     fake_llm.queue(
-        {"mode": "chat", "mode_reasoning": "Первый запуск"},
-        {"mode": "chat", "mode_reasoning": "Второй запуск"},
+        {
+            "mode": "research",
+            "reasoning": "Первый запуск",
+            "goal": "Первая цель",
+            "sub_goals": [{
+                "goal": "Первая цель",
+                "corpus": "MAIN",
+                "corpus_reasoning": "Основной корпус",
+                "hypotheses": [],
+                "research_plan": [],
+            }],
+        },
+        {
+            "mode": "research",
+            "reasoning": "Второй запуск",
+            "goal": "Вторая цель",
+            "sub_goals": [{
+                "goal": "Вторая цель",
+                "corpus": "MAIN",
+                "corpus_reasoning": "Основной корпус",
+                "hypotheses": [],
+                "research_plan": [],
+            }],
+        },
     )
 
     planner_module.planner_node(
@@ -371,7 +475,8 @@ def test_trace_uses_current_iteration_instead_of_default_zero(
     monkeypatch.setattr(execution_module, "emit_trace", capture_trace)
     fake_llm.queue(
         {
-            "planned_actions": [],
+            "status": "complete",
+            "actions": [],
             "reasoning": "На четвёртой итерации новых действий нет",
         }
     )
@@ -406,14 +511,18 @@ def test_execution_planner_error_reaches_terminal_node_without_second_llm_call(
     fake_llm.queue(
         {
             "mode": "research",
-            "mode_reasoning": "Нужны данные",
+            "reasoning": "Нужны данные",
             "goal": "Проверить корпус",
-            "hypotheses": [],
-            "research_plan": ["Получить статистику"],
-            "recommended_corpus": "MAIN",
-            "corpus_reasoning": "Основной корпус",
+            "sub_goals": [{
+                "goal": "Проверить корпус",
+                "corpus": "MAIN",
+                "corpus_reasoning": "Основной корпус",
+                "hypotheses": [],
+                "research_plan": ["Получить статистику"],
+            }],
         },
         "not-json",
+        "still-not-json",
     )
     app = graph_module.workflow.compile(checkpointer=MemorySaver())
 
@@ -425,8 +534,8 @@ def test_execution_planner_error_reaches_terminal_node_without_second_llm_call(
     assert result["research_status"] == "error"
     assert result["termination_reason"] == "error"
     assert result["error"]["node"] == "execution_planner"
-    assert result["final_response"] == "Не удалось составить исполнительный план."
-    assert len(fake_llm.calls) == 2
+    assert "дважды" in result["final_response"]
+    assert len(fake_llm.calls) == 3
     assert fake_nkrja.calls == []
 
 
@@ -436,16 +545,19 @@ def test_new_research_plan_does_not_receive_previous_facts(fake_llm: Any) -> Non
     fake_llm.queue(
         {
             "mode": "research",
-            "mode_reasoning": "Это самостоятельная задача",
+            "reasoning": "Это самостоятельная задача",
         },
         {
             "mode": "research",
-            "mode_reasoning": "Сформирован чистый план",
+            "reasoning": "Сформирован чистый план",
             "goal": "NEW_GOAL",
-            "hypotheses": ["NEW_HYPOTHESIS"],
-            "research_plan": ["NEW_STEP"],
-            "recommended_corpus": "MAIN",
-            "corpus_reasoning": "Новый вопрос",
+            "sub_goals": [{
+                "goal": "NEW_GOAL",
+                "corpus": "MAIN",
+                "corpus_reasoning": "Новый вопрос",
+                "hypotheses": ["NEW_HYPOTHESIS"],
+                "research_plan": ["NEW_STEP"],
+            }],
         },
     )
 

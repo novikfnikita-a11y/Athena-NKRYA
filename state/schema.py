@@ -15,6 +15,7 @@ from state.models import (
     PlannerRoute,
     ResearchMode,
     ResearchStatus,
+    ResearchSubGoal,
     TerminationReason,
 )
 from state.reducers import (
@@ -90,9 +91,11 @@ class ResearchState(TypedDict, total=False):
     final_response: str
     mode: ResearchMode | Literal["research", "chat", "replan", "error"]
     planner_route: PlannerRoute | str
+    planner_reasoning: str
     research_status: ResearchStatus | str
 
     # Current plan. These values are replaced on replan, not accumulated.
+    overall_goal: str
     goal: str
     research_plan: list[str]
     current_step_index: int
@@ -100,6 +103,7 @@ class ResearchState(TypedDict, total=False):
     corpus_reasoning: str
     hypotheses: list[str]
     open_questions: list[str]
+    sub_goals: list[ResearchSubGoal | dict[str, Any]]
 
     # Current single-branch compatibility scope. Stage 4 will fan this out.
     branch_id: str

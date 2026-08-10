@@ -55,6 +55,36 @@ def test_llm_factory_rejects_missing_secret_at_creation() -> None:
         get_llm(_settings(VSEGPT_API_KEY=""))
 
 
+def test_llm_factory_exposes_native_structured_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from LLM import client as llm_module
+    from LLM.structured import AggregatorOutput
+
+    captured: dict[str, Any] = {}
+    sentinel = object()
+
+    class FakeChatModel:
+        def with_structured_output(self, schema: type[Any], **kwargs: Any) -> object:
+            captured["schema"] = schema
+            captured["kwargs"] = kwargs
+            return sentinel
+
+    monkeypatch.setattr(llm_module, "get_llm", lambda _settings=None: FakeChatModel())
+
+    result = llm_module.get_structured_llm(
+        AggregatorOutput,
+        _settings(),
+        method="json_schema",
+    )
+
+    assert result is sentinel
+    assert captured == {
+        "schema": AggregatorOutput,
+        "kwargs": {"method": "json_schema"},
+    }
+
+
 @pytest.mark.asyncio
 async def test_nkrja_client_uses_configured_transport_boundary() -> None:
     from tools.nkrja_client import NKRJAClient
