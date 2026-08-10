@@ -1,56 +1,137 @@
-# state/schema.py
+"""LangGraph state schema with explicit lifecycle and isolation boundaries."""
 
-import operator
-from typing import TypedDict, Annotated, Any, Literal
+from __future__ import annotations
+
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
+
+from state.models import (
+    ActionCall,
+    AggregatorStatus,
+    BranchResult,
+    ErrorKind,
+    EvidenceArtifact,
+    ExecutionStatus,
+    Fact,
+    PlannerRoute,
+    ResearchMode,
+    ResearchStatus,
+    TerminationReason,
+)
+from state.reducers import (
+    merge_actions,
+    merge_branch_results,
+    merge_evidence,
+    merge_facts,
+    merge_unique_text,
+)
 
 
-class ResearchState(TypedDict):
-    # исходная постановка задачи
-    research_question: str
+class SafeError(TypedDict):
+    kind: ErrorKind | str
+    message: str
+    node: NotRequired[str]
+    retryable: NotRequired[bool]
+
+
+class ResearchBudgets(TypedDict):
+    max_iterations: int
+    max_actions: int
+    max_evidence_items: int
+    max_context_chars: int
+
+
+class ConversationTurn(TypedDict):
+    turn_id: str
+    research_id: str
+    question: str
+    answer: str
+
+
+class ResearchSnapshot(TypedDict, total=False):
+    research_id: str
+    run_id: str
+    turn_id: str
+    question: str
     goal: str
+    status: ResearchStatus | str
     final_response: str
+    facts: list[Fact | dict[str, Any] | str]
+    evidence: list[EvidenceArtifact | dict[str, Any]]
+    termination_reason: TerminationReason | str | None
+
+
+class ResearchState(TypedDict, total=False):
+    # Conversation scope: survives multiple user turns in one thread.
+    thread_id: str
+    conversation_history: list[ConversationTurn]
+    research_archive: dict[str, ResearchSnapshot]
+    selected_context_research_id: str | None
+    context_facts: list[Fact | dict[str, Any] | str]
+    context_evidence: list[EvidenceArtifact | dict[str, Any]]
+
+    # Current user turn and current research scope.
+    turn_id: str
+    research_id: str
+    run_id: str
+    active_research_question: str
+    research_question: str
+    final_response: str
+    mode: ResearchMode | Literal["research", "chat", "replan", "error"]
+    planner_route: PlannerRoute | str
+    research_status: ResearchStatus | str
+
+    # Current plan. These values are replaced on replan, not accumulated.
+    goal: str
+    research_plan: list[str]
+    current_step_index: int
+    recommended_corpus: str
+    corpus_reasoning: str
+    hypotheses: list[str]
+    open_questions: list[str]
+
+    # Current single-branch compatibility scope. Stage 4 will fan this out.
+    branch_id: str
+    batch_id: str
     iteration_count: int
+    budgets: ResearchBudgets
 
-    # НОВОЕ: режим работы графа, определяется planner_node на каждом входе в узел.
-    # "research" - нужен полный цикл сбора данных через API НКРЯ
-    # "chat"     - уточняющий вопрос по уже собранным фактам, новые API-вызовы не нужны
-    mode: Literal["research", "chat"]
+    # Truly cumulative research-local channels. Lifecycle resets them explicitly.
+    evidence: Annotated[
+        list[EvidenceArtifact | dict[str, Any]],
+        merge_evidence,
+    ]
+    facts: Annotated[list[Fact | dict[str, Any] | str], merge_facts]
+    deductions: Annotated[list[str], merge_unique_text]
+    completed_actions: Annotated[
+        list[ActionCall | dict[str, Any]],
+        merge_actions,
+    ]
+    branch_results: Annotated[
+        list[BranchResult | dict[str, Any]],
+        merge_branch_results,
+    ]
 
-    # план оркестрации
-    research_plan: list[str]  # Общий пошаговый план от Планнера
-    current_step_index: int  # На каком шаге плана мы сейчас находимся
-
-    # ВАРИАНТ Б: решение о корпусе принимается ОДИН РАЗ на этапе planner_node,
-    # а не заново на каждой итерации execution_planner. Поля перезаписываются
-    # целиком (без operator.add), т.к. это единое актуальное решение, а не история.
-    recommended_corpus: str      # одно из значений CorpusTypeEnum, выбранное планировщиком
-    corpus_reasoning: str        # обоснование выбора корпуса (для прозрачности методологии)
-
-    # план исследования
-    hypotheses: Annotated[list[str], operator.add]
-    open_questions: Annotated[list[str], operator.add]
-
-    # данные исследования
-    evidence: Annotated[list[dict], operator.add]
-    facts: Annotated[list[str], operator.add]
-    deductions: Annotated[list[str], operator.add]
-
-    # служебные поля агрегатора
+    # Ephemeral batch data and explicit routing decisions.
+    planned_actions: list[ActionCall | dict[str, Any]]
+    last_evidence_batch: list[EvidenceArtifact | dict[str, Any]]
+    execution_status: ExecutionStatus | str | None
+    aggregator_status: AggregatorStatus | str | None
     aggregator_reasoning: str
-    missing_information: Annotated[list[str], operator.add]
-
-    # история уже  выполненных действий
-    completed_actions: Annotated[list[dict], operator.add]
-
-    needs_replanning: bool # True - возврат к Planner, False - возврат к Execution
-    pagination_context: dict  # Хранит состояние пагинаци
-    # управление графом
-    confidence: float
+    missing_information: list[str]
+    needs_replanning: bool
     is_goal_reached: bool
+    confidence: float
+    pagination_context: dict[str, Any]
 
-    # очередь задач. полностью перезаписывается на каждой итерации (без operator.add)
-    planned_actions: list[dict[str, Any]]
+    # Terminal and diagnostic state.
+    termination_reason: TerminationReason | str | None
+    error: SafeError | None
 
-    # LEGACY от версии без батча на оркестрации
-    next_action: str
-    action_params: dict
+
+__all__ = [
+    "ConversationTurn",
+    "ResearchBudgets",
+    "ResearchSnapshot",
+    "ResearchState",
+    "SafeError",
+]

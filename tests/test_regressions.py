@@ -1,10 +1,4 @@
-"""Red regression tests for the defects recorded before the refactor.
-
-These tests intentionally describe the required behaviour, not the current
-implementation.  At plan step 1.2 they must fail on the baseline.  Later plan
-steps turn them green one defect at a time; production code is deliberately not
-changed here.
-"""
+"""Regression tests for defects recorded before the state refactor."""
 
 from __future__ import annotations
 
@@ -22,15 +16,7 @@ from tools import orchestrator as orchestrator_module
 def _research_input(question: str) -> dict[str, Any]:
     """Return the same minimal per-question input currently used by the CLI."""
 
-    return {
-        "research_question": question,
-        "iteration_count": 0,
-        "is_goal_reached": False,
-        "needs_replanning": False,
-        "planned_actions": [],
-        "next_action": "",
-        "action_params": {},
-    }
+    return {"research_question": question}
 
 
 def _aggregator_state(**overrides: Any) -> dict[str, Any]:
@@ -82,8 +68,6 @@ def test_orchestrator_returns_evidence_delta_without_doubling(
         "planned_actions": [
             {"action": "get_corpus_stats", "params": {"corpus": "MAIN"}}
         ],
-        "next_action": "",
-        "action_params": {},
     }
 
     update = orchestrator_module.api_orchestrator_node(state)
@@ -109,7 +93,6 @@ def test_empty_plan_reaches_terminal_route_instead_of_looping() -> None:
         iteration_count=0,
         is_goal_reached=False,
         needs_replanning=False,
-        next_action="",
     )
 
     update = evidence_module.evidence_aggregator_node(state, config={})
@@ -201,6 +184,10 @@ def test_second_research_in_same_thread_does_not_mix_first_research(
             "reasoning": "Первая задача завершена",
         },
         "FIRST_ANSWER",
+        {
+            "mode": "research",
+            "mode_reasoning": "Вторая самостоятельная задача",
+        },
         {
             "mode": "research",
             "mode_reasoning": "Вторая самостоятельная задача",
@@ -373,3 +360,82 @@ def test_trace_uses_current_iteration_instead_of_default_zero(
     )
 
     assert emitted_iterations == [3]
+
+
+def test_execution_planner_error_reaches_terminal_node_without_second_llm_call(
+    fake_llm: Any,
+    fake_nkrja: Any,
+    monkeypatch: Any,
+) -> None:
+    """An execution-planning failure must not be overwritten by an empty batch."""
+
+    _disable_node_traces(monkeypatch)
+    fake_llm.queue(
+        {
+            "mode": "research",
+            "mode_reasoning": "Нужны данные",
+            "goal": "Проверить корпус",
+            "hypotheses": [],
+            "research_plan": ["Получить статистику"],
+            "recommended_corpus": "MAIN",
+            "corpus_reasoning": "Основной корпус",
+        },
+        "not-json",
+    )
+    app = graph_module.workflow.compile(checkpointer=MemorySaver())
+
+    result = app.invoke(
+        {"research_question": "Проверить контролируемую ошибку"},
+        config={"configurable": {"thread_id": "execution-error-thread"}},
+    )
+
+    assert result["research_status"] == "error"
+    assert result["termination_reason"] == "error"
+    assert result["error"]["node"] == "execution_planner"
+    assert result["final_response"] == "Не удалось составить исполнительный план."
+    assert len(fake_llm.calls) == 2
+    assert fake_nkrja.calls == []
+
+
+def test_new_research_plan_does_not_receive_previous_facts(fake_llm: Any) -> None:
+    """Past facts may classify a follow-up but cannot contaminate a new plan."""
+
+    fake_llm.queue(
+        {
+            "mode": "research",
+            "mode_reasoning": "Это самостоятельная задача",
+        },
+        {
+            "mode": "research",
+            "mode_reasoning": "Сформирован чистый план",
+            "goal": "NEW_GOAL",
+            "hypotheses": ["NEW_HYPOTHESIS"],
+            "research_plan": ["NEW_STEP"],
+            "recommended_corpus": "MAIN",
+            "corpus_reasoning": "Новый вопрос",
+        },
+    )
+
+    result = planner_module.planner_node(
+        {
+            "research_question": "Новая самостоятельная тема",
+            "selected_context_research_id": "research-old",
+            "research_archive": {
+                "research-old": {
+                    "question": "Старая тема",
+                    "goal": "OLD_GOAL",
+                }
+            },
+            "context_facts": ["OLD_FACT_MUST_NOT_REACH_PLAN"],
+            "run_id": "run-new",
+            "research_id": "research-new",
+            "iteration_count": 0,
+        }
+    )
+
+    classifier_prompt = fake_llm.calls[0].input[-1].content
+    planning_prompt = fake_llm.calls[1].input[-1].content
+    assert "OLD_FACT_MUST_NOT_REACH_PLAN" in classifier_prompt
+    assert "OLD_FACT_MUST_NOT_REACH_PLAN" not in planning_prompt
+    assert "OLD_GOAL" not in planning_prompt
+    assert result["goal"] == "NEW_GOAL"

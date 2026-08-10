@@ -1,4 +1,5 @@
 import json
+import uuid
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
@@ -10,7 +11,16 @@ from utils.trace import emit_trace
 
 def execution_planner_node(state: ResearchState, config : RunnableConfig):
     print("\n--- УЗЕЛ: Execution Planner (Выбор инструмента) ---")
-    run_id = state.get("research_question", "default_run")
+    run_id = state.get("run_id", "default-run")
+    batch_id = f"batch-{uuid.uuid4()}"
+    trace_scope = {
+        "thread_id": state.get("thread_id"),
+        "turn_id": state.get("turn_id"),
+        "research_id": state.get("research_id"),
+        "branch_id": state.get("branch_id"),
+        "batch_id": batch_id,
+        "iteration": state.get("iteration_count", 0),
+    }
     llm = get_llm()
 
     system_prompt_ready = EXECUTION_PLANNER_SYSTEM_PROMPT.format(
@@ -84,9 +94,10 @@ def execution_planner_node(state: ResearchState, config : RunnableConfig):
         # --- ИНТЕГРАЦИЯ ТРЕЙСИНГА ---
         emit_trace(
             node="execution_planner",
-            event_type="thought",
+            event_type="planning",
             content=reasoning,
-            run_id=run_id
+            run_id=run_id,
+            **trace_scope,
         )
 
         if planned_actions:
@@ -94,7 +105,8 @@ def execution_planner_node(state: ResearchState, config : RunnableConfig):
                 node="execution_planner",
                 event_type="action",
                 content=planned_actions,
-                run_id=run_id
+                run_id=run_id,
+                **trace_scope,
             )
 
         print(f"[ExecPlanner] Запланировано действий: {len(planned_actions)}")
@@ -104,14 +116,22 @@ def execution_planner_node(state: ResearchState, config : RunnableConfig):
 
         return {
             "planned_actions": planned_actions,
-            "next_action": "",
-            "action_params": {}
+            "batch_id": batch_id,
+            "execution_status": "execute" if planned_actions else "complete",
         }
 
     except Exception as e:
         print(f"[ExecPlanner] Ошибка парсинга или выбора инструмента: {e}")
         return {
             "planned_actions": [],
-            "next_action": "",
-            "action_params": {}
+            "batch_id": batch_id,
+            "execution_status": "error",
+            "research_status": "error",
+            "termination_reason": "error",
+            "error": {
+                "kind": "model",
+                "message": "Не удалось составить исполнительный план.",
+                "node": "execution_planner",
+                "retryable": True,
+            },
         }

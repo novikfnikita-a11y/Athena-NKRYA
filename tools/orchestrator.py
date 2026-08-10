@@ -1,10 +1,12 @@
+import copy
+import uuid
+
 from state.schema import ResearchState
 from tools.nkrja_client import NKRJAClient
 from tools.registry import CAPABILITY_REGISTRY
 from tools.evidence_compressor import compress_word_portrait_response
 from whitelist_generated import RESULTTYPE_CORPUS_WHITELIST
 from utils.trace import emit_trace
-from langsmith import traceable  # НОВОЕ: Для параллельного логирования шага в LangSmith
 
 RESPONSE_COMPRESSORS = {
     "get_word_portrait": compress_word_portrait_response,
@@ -19,28 +21,45 @@ def api_orchestrator_node(state: ResearchState):
     Результаты аккумулируются в массив evidence.
     """
     print("\n--- API ORCHESTRATOR (BATCH MODE) ---")
-    run_id = state.get("research_question", "default_run")
+    run_id = state.get("run_id", "default-run")
+    research_id = state.get("research_id", "legacy-research")
+    branch_id = state.get("branch_id", "legacy-branch")
+    batch_id = state.get("batch_id") or f"batch-{uuid.uuid4()}"
+    iteration = state.get("iteration_count", 0)
+
+    def trace(event_type, content, *, action_id=None):
+        emit_trace(
+            node="api_orchestrator",
+            event_type=event_type,
+            content=content,
+            run_id=run_id,
+            thread_id=state.get("thread_id"),
+            turn_id=state.get("turn_id"),
+            research_id=research_id,
+            branch_id=branch_id,
+            batch_id=batch_id,
+            action_id=action_id,
+            iteration=iteration,
+        )
 
     planned_actions = state.get("planned_actions", [])
-
-    legacy_action = state.get("next_action")
-    if not planned_actions and legacy_action and legacy_action != "finish":
-        planned_actions = [{"action": legacy_action, "params": state.get("action_params", {})}]
 
     if not planned_actions:
         print("[Orchestrator] Запланированных действий нет.")
         return {
             "planned_actions": [],
-            "next_action": "",
-            "action_params": {}
+            "last_evidence_batch": [],
+            "execution_status": "complete",
         }
 
     client = NKRJAClient()
     new_evidence = []
+    completed_actions = []
 
     for item in planned_actions:
-        action = item.get("action")
-        params = item.get("params", {})
+        action = item.get("action") or item.get("tool")
+        action_id = item.get("action_id") or f"action-{uuid.uuid4()}"
+        params = copy.deepcopy(item.get("params", {}))
 
         if action == "get_word_portrait" and "resultType" in params:
             corpus = params.get("corpus", "MAIN")
@@ -52,17 +71,20 @@ def api_orchestrator_node(state: ResearchState):
             if removed_types:
                 msg = f"Из запроса к корпусу '{corpus}' автоматически удалены неподдерживаемые бэкендом типы: {list(removed_types)}. Измените планирование вызова."
                 # Ваша локальная система SQLite
-                emit_trace(
-                    node="api_orchestrator",
-                    event_type="observation",
-                    content={"status": "warning", "message": msg},
-                    run_id=run_id
-                )
+                trace("observation", {"status": "warning", "message": msg}, action_id=action_id)
                 print(f"[Orchestrator] Отфильтрованы неподдерживаемые типы для {corpus}: {removed_types}")
 
                 new_evidence.append({
+                    "research_id": research_id,
+                    "run_id": run_id,
+                    "branch_id": branch_id,
+                    "batch_id": batch_id,
+                    "action_id": action_id,
+                    "evidence_id": f"evidence-{uuid.uuid4()}",
                     "source": "System_Safeguard",
                     "action": action,
+                    "tool": action,
+                    "params": copy.deepcopy(params),
                     "status": "warning",
                     "message": msg
                 })
@@ -74,17 +96,32 @@ def api_orchestrator_node(state: ResearchState):
                 print(f"[Orchestrator] Вызов отменен: {msg_err}")
 
                 # Ваша локальная система SQLite
-                emit_trace(
-                    node="api_orchestrator",
-                    event_type="observation",
-                    content={"status": "error", "message": msg_err},
-                    run_id=run_id
-                )
+                trace("observation", {"status": "error", "message": msg_err}, action_id=action_id)
                 new_evidence.append({
+                    "research_id": research_id,
+                    "run_id": run_id,
+                    "branch_id": branch_id,
+                    "batch_id": batch_id,
+                    "action_id": action_id,
+                    "evidence_id": f"evidence-{uuid.uuid4()}",
                     "source": "System_Safeguard",
                     "action": action,
+                    "tool": action,
+                    "params": copy.deepcopy(params),
                     "status": "error",
                     "message": msg_err
+                })
+                completed_actions.append({
+                    "research_id": research_id,
+                    "run_id": run_id,
+                    "branch_id": branch_id,
+                    "batch_id": batch_id,
+                    "action_id": action_id,
+                    "tool": action,
+                    "params": copy.deepcopy(params),
+                    "status": "failed",
+                    "iteration": iteration,
+                    "message": msg_err,
                 })
                 continue
 
@@ -96,17 +133,27 @@ def api_orchestrator_node(state: ResearchState):
             print(f"[Orchestrator] Ошибка: {msg_missing}")
 
             # Ваша локальная система SQLite
-            emit_trace(
-                node="api_orchestrator",
-                event_type="observation",
-                content={"action": action, "status": "error", "message": msg_missing},
-                run_id=run_id
-            )
+            trace("observation", {"action": action, "status": "error", "message": msg_missing}, action_id=action_id)
             new_evidence.append({
+                "research_id": research_id,
+                "run_id": run_id,
+                "branch_id": branch_id,
+                "batch_id": batch_id,
+                "action_id": action_id,
+                "evidence_id": f"evidence-{uuid.uuid4()}",
                 "source": "System",
                 "action": action,
+                "tool": action or "unknown_action",
+                "params": copy.deepcopy(params),
                 "status": "error",
                 "message": msg_missing
+            })
+            completed_actions.append({
+                "research_id": research_id, "run_id": run_id,
+                "branch_id": branch_id, "batch_id": batch_id,
+                "action_id": action_id, "tool": action or "unknown_action",
+                "params": copy.deepcopy(params), "status": "failed",
+                "iteration": iteration, "message": msg_missing,
             })
             continue
 
@@ -116,17 +163,27 @@ def api_orchestrator_node(state: ResearchState):
             print(f"[Orchestrator] Ошибка: {msg_unimplemented}")
 
             # Ваша локальная система SQLite
-            emit_trace(
-                node="api_orchestrator",
-                event_type="observation",
-                content={"action": action, "status": "error", "message": msg_unimplemented},
-                run_id=run_id
-            )
+            trace("observation", {"action": action, "status": "error", "message": msg_unimplemented}, action_id=action_id)
             new_evidence.append({
+                "research_id": research_id,
+                "run_id": run_id,
+                "branch_id": branch_id,
+                "batch_id": batch_id,
+                "action_id": action_id,
+                "evidence_id": f"evidence-{uuid.uuid4()}",
                 "source": "System",
                 "action": action,
+                "tool": action,
+                "params": copy.deepcopy(params),
                 "status": "error",
                 "message": msg_unimplemented
+            })
+            completed_actions.append({
+                "research_id": research_id, "run_id": run_id,
+                "branch_id": branch_id, "batch_id": batch_id,
+                "action_id": action_id, "tool": action,
+                "params": copy.deepcopy(params), "status": "failed",
+                "iteration": iteration, "message": msg_unimplemented,
             })
             continue
 
@@ -146,53 +203,72 @@ def api_orchestrator_node(state: ResearchState):
                 except Exception as compress_err:
                     print(f"[Orchestrator] ВНИМАНИЕ: компрессор для '{action}' упал ({compress_err}), кладём сырой ответ как есть.")
                     # Ваша локальная система SQLite
-                    emit_trace(
-                        node="api_orchestrator",
-                        event_type="observation",
-                        content={"action": action, "status": "warning", "message": f"Компрессор упал: {compress_err}"},
-                        run_id=run_id
-                    )
+                    trace("observation", {"action": action, "status": "warning", "message": f"Компрессор упал: {compress_err}"}, action_id=action_id)
 
             compressed_size = len(str(result))
             print(f"[Orchestrator] Успешно: {action} | размер ответа: {raw_size} -> {compressed_size} байт")
 
             # Ваша локальная система SQLite
-            emit_trace(
-                node="api_orchestrator",
-                event_type="observation",
-                content={"action": action, "status": "success", "response_preview": str(result)[:500] + "..."},
-                run_id=run_id
-            )
+            trace("observation", {"action": action, "status": "success", "response_preview": str(result)[:500] + "..."}, action_id=action_id)
 
             new_evidence.append({
+                "research_id": research_id,
+                "run_id": run_id,
+                "branch_id": branch_id,
+                "batch_id": batch_id,
+                "action_id": action_id,
+                "evidence_id": f"evidence-{uuid.uuid4()}",
                 "source": "NKRJA",
                 "action": action,
-                "params": params,
-                "response": result
+                "tool": action,
+                "params": copy.deepcopy(params),
+                "response": result,
+                "payload": result,
+                "status": "success",
+            })
+            completed_actions.append({
+                "research_id": research_id, "run_id": run_id,
+                "branch_id": branch_id, "batch_id": batch_id,
+                "action_id": action_id, "tool": action,
+                "params": copy.deepcopy(params), "status": "succeeded",
+                "iteration": iteration,
             })
 
         except Exception as e:
             print(f"[Orchestrator] Ошибка в {action}: {e}")
 
             # Ваша локальная система SQLite
-            emit_trace(
-                node="api_orchestrator",
-                event_type="observation",
-                content={"action": action, "status": "error", "message": str(e)},
-                run_id=run_id
-            )
+            trace("observation", {"action": action, "status": "error", "message": str(e)}, action_id=action_id)
 
             new_evidence.append({
+                "research_id": research_id,
+                "run_id": run_id,
+                "branch_id": branch_id,
+                "batch_id": batch_id,
+                "action_id": action_id,
+                "evidence_id": f"evidence-{uuid.uuid4()}",
                 "source": "System",
                 "action": action,
+                "tool": action or "unknown_action",
+                "params": copy.deepcopy(params),
                 "status": "error",
                 "message": str(e)
+            })
+            completed_actions.append({
+                "research_id": research_id, "run_id": run_id,
+                "branch_id": branch_id, "batch_id": batch_id,
+                "action_id": action_id, "tool": action or "unknown_action",
+                "params": copy.deepcopy(params), "status": "failed",
+                "iteration": iteration, "message": str(e),
             })
 
     print(f"[Orchestrator] пакетная обработка завершена. Собрано {len(new_evidence)} артефактов.")
 
     return {
-        "evidence": state.get("evidence", []) + new_evidence,
-        "next_action": "",
-        "action_params": {}
+        "evidence": new_evidence,
+        "last_evidence_batch": new_evidence,
+        "completed_actions": completed_actions,
+        "planned_actions": [],
+        "batch_id": batch_id,
+        "execution_status": "complete",
     }
