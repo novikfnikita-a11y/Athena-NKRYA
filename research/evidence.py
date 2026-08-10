@@ -94,9 +94,11 @@ def evidence_aggregator_node(
         response = get_llm().invoke(messages, config=config)
         content = response.content.strip().replace("```json", "").replace("```", "")
         data = json.loads(content)
-        new_facts = data.get("new_facts", [])
-        if not isinstance(new_facts, list):
+        new_deductions = data.get("new_facts", [])
+        if not isinstance(new_deductions, list):
             raise ValueError("new_facts must be a list")
+        if not all(isinstance(item, str) and item.strip() for item in new_deductions):
+            raise ValueError("new_facts must contain non-empty text interpretations")
         is_goal_reached = _strict_boolean(
             data.get("is_goal_reached", False), "is_goal_reached"
         )
@@ -121,10 +123,12 @@ def evidence_aggregator_node(
             termination_reason = None
             research_status = "running"
 
-        print(f"[Aggregator] Извлечено новых фактов: {len(new_facts)}")
+        print(f"[Aggregator] Извлечено новых интерпретаций: {len(new_deductions)}")
         print(f"[Aggregator] Цель достигнута: {is_goal_reached} ({reasoning})")
         return {
-            "facts": new_facts,
+            # LLM output is interpretation, never an observable Fact. Numeric
+            # facts enter state exclusively through research.fact_extractor.
+            "deductions": new_deductions,
             "is_goal_reached": is_goal_reached,
             "needs_replanning": needs_replanning,
             "aggregator_status": aggregator_status,

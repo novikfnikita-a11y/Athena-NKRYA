@@ -171,6 +171,12 @@ class Settings:
     max_concurrent_requests: int
 
     max_research_iterations: int
+    max_research_branches: int
+    max_actions_per_branch: int
+    max_requests_per_iteration: int
+    max_external_calls: int
+    research_wall_time_seconds: float
+    max_evidence_items: int
     evidence_context_budget_chars: int
     llm_max_output_tokens: int
     llm_temperature: float
@@ -232,6 +238,42 @@ class Settings:
                 source,
                 "MAX_RESEARCH_ITERATIONS",
                 4,
+                minimum=1,
+            ),
+            max_research_branches=_integer(
+                source,
+                "MAX_RESEARCH_BRANCHES",
+                4,
+                minimum=1,
+            ),
+            max_actions_per_branch=_integer(
+                source,
+                "MAX_ACTIONS_PER_BRANCH",
+                16,
+                minimum=1,
+            ),
+            max_requests_per_iteration=_integer(
+                source,
+                "MAX_REQUESTS_PER_ITERATION",
+                4,
+                minimum=1,
+            ),
+            max_external_calls=_integer(
+                source,
+                "MAX_EXTERNAL_CALLS",
+                32,
+                minimum=1,
+            ),
+            research_wall_time_seconds=_number(
+                source,
+                "RESEARCH_WALL_TIME_SECONDS",
+                120.0,
+                minimum=0.1,
+            ),
+            max_evidence_items=_integer(
+                source,
+                "MAX_EVIDENCE_ITEMS",
+                100,
                 minimum=1,
             ),
             evidence_context_budget_chars=_integer(

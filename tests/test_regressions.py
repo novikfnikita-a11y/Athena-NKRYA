@@ -77,10 +77,12 @@ def test_orchestrator_returns_evidence_delta_without_doubling(
     # twice after the reducer is applied.
     merged_evidence = state["evidence"] + update["evidence"]
 
-    assert [item["response"]["marker"] for item in merged_evidence] == [
-        "old",
-        "new",
-    ]
+    assert len(merged_evidence) == 2
+    assert merged_evidence[0]["response"]["marker"] == "old"
+    assert (
+        merged_evidence[1]["payload"]["data"]["corpus_statistics"]["marker"]
+        == "new"
+    )
 
 
 def test_empty_plan_reaches_terminal_route_instead_of_looping() -> None:
@@ -151,6 +153,36 @@ def test_string_false_is_normalized_to_boolean_false(fake_llm: Any) -> None:
 
     assert update["is_goal_reached"] is False
     assert update["needs_replanning"] is False
+
+
+def test_llm_observations_are_deductions_not_provenance_facts(
+    fake_llm: Any,
+) -> None:
+    fake_llm.queue(
+        {
+            "new_facts": ["Модель интерпретировала числовой результат как высокий"],
+            "is_goal_reached": True,
+            "needs_replanning": False,
+            "reasoning": "Интерпретация отделена от наблюдения",
+        }
+    )
+    batch = [
+        {
+            "source": "NKRJA",
+            "action": "get_corpus_stats",
+            "params": {"corpus": "MAIN"},
+            "payload": {"data": {"documents": 100}},
+            "status": "success",
+        }
+    ]
+    update = evidence_module.evidence_aggregator_node(
+        _aggregator_state(last_evidence_batch=batch), config={}
+    )
+
+    assert "facts" not in update
+    assert update["deductions"] == [
+        "Модель интерпретировала числовой результат как высокий"
+    ]
 
 
 def test_second_research_in_same_thread_does_not_mix_first_research(
@@ -228,7 +260,8 @@ def test_second_research_in_same_thread_does_not_mix_first_research(
 
     assert second_result["goal"] == "SECOND_GOAL"
     assert second_result["hypotheses"] == ["SECOND_HYPOTHESIS"]
-    assert second_result["facts"] == ["SECOND_FACT"]
+    assert second_result["facts"] == []
+    assert second_result["deductions"] == ["SECOND_FACT"]
     assert all(
         item.get("response", {}).get("marker") != "FIRST_EVIDENCE"
         for item in second_result["evidence"]

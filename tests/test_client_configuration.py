@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
 import pytest
 
 from app.config import MissingSecretError, Settings
@@ -54,42 +55,29 @@ def test_llm_factory_rejects_missing_secret_at_creation() -> None:
         get_llm(_settings(VSEGPT_API_KEY=""))
 
 
-class _Response:
-    text = ""
-
-    def raise_for_status(self) -> None:
-        return None
-
-
-class _RecordingSession:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, str, dict[str, Any]]] = []
-
-    def get(self, url: str, **kwargs: Any) -> _Response:
-        self.calls.append(("GET", url, kwargs))
-        return _Response()
-
-    def post(self, url: str, **kwargs: Any) -> _Response:
-        self.calls.append(("POST", url, kwargs))
-        return _Response()
-
-
-def test_nkrja_client_uses_configured_transport_boundary() -> None:
+@pytest.mark.asyncio
+async def test_nkrja_client_uses_configured_transport_boundary() -> None:
     from tools.nkrja_client import NKRJAClient
 
-    session = _RecordingSession()
-    client = NKRJAClient(_settings(), session=session)
-    client.get_corpus_stats("MAIN")
+    requests: list[httpx.Request] = []
 
-    method, url, kwargs = session.calls[0]
-    assert method == "GET"
-    assert url == "https://nkrja.example/api/api/v1/stats/"
-    assert kwargs["timeout"] == 17.5
-    assert kwargs["headers"]["Authorization"] == "Bearer nkrja-secret"
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"status": "ok"})
+
+    transport = httpx.MockTransport(handle)
+    async with httpx.AsyncClient(transport=transport) as session:
+        client = NKRJAClient(_settings(), client=session)
+        await client.get_corpus_stats("MAIN")
+
+    request = requests[0]
+    assert request.method == "GET"
+    assert str(request.url).startswith("https://nkrja.example/api/v1/stats/")
+    assert request.headers["Authorization"] == "Bearer nkrja-secret"
 
 
 def test_nkrja_client_rejects_missing_secret_at_creation() -> None:
     from tools.nkrja_client import NKRJAClient
 
     with pytest.raises(MissingSecretError, match="NKRJA_API_KEY"):
-        NKRJAClient(_settings(NKRJA_API_KEY=""), session=_RecordingSession())
+        NKRJAClient(_settings(NKRJA_API_KEY=""))

@@ -1,111 +1,296 @@
-# tools/registry.py справочник доступных инструментов
-from whitelist_generated import RESULTTYPE_CORPUS_WHITELIST
-CAPABILITY_REGISTRY = {
-    "get_word_portrait": {
-        "description": (
-            "Универсальный инструмент комплексного анализа ОДНОГО слова через эндпоинт Портрет Слова. "
-            "Позволяет за один вызов собрать детальные филологические маркеры. "
-            "Обязательно передавать: 'lemma' (строка, строго в словарной форме, без операторов вроде * или -), "
-            "'corpus' (строка, строго ОДНО из значений CorpusTypeEnum), "
-            "и 'resultType' (массив строк, определяющий, какие именно слои данных нужно вернуть).\n\n"
-            "Допустимые значения для массива resultType:\n"
-            "  - PORTRAIT_WORD_INFO: Базовая лексико-грамматическая информация о слове;\n"
-            "  - PORTRAIT_CONCORDANCE: Примеры текстовых предложений (конкорданс);\n"
-            "  - PORTRAIT_STATS: Статистика распределения по метаданным (ОБЯЗАТЕЛЬНО требует заполнения параметра statFields);\n"
-            "  - PORTRAIT_SKETCH: Скетчи слова (коллокации, типичная синтаксическая сочетаемость);\n"
-            "  - PORTRAIT_FREQUENCY: Общая частотность леммы в выбранном корпусе;\n"
-            "  - PORTRAIT_SIMILAR: Семантически близкие/похожие слова (ОБЯЗАТЕЛЬНО требует заполнения параметра similarCategories);\n"
-            "  - PORTRAIT_MORPHEME: Морфемный разбор слова;\n"
-            "  - PORTRAIT_WORDFORMS: Парадигма всех существующих словоформ;\n"
-            "  - PORTRAIT_COGNATES: Список однокоренных слов;\n"
-            "  - PORTRAIT_FIRST_MENTION: Хронологически первое упоминание слова в корпусе.\n\n"
-            "Опциональные параметры:\n"
-            "  - 'pos' (строка): Часть речи на основе сокращений НКРЯ (например, 'S' - существительное, 'V' - глагол). Если опущен, вернет данные для самой частотной части речи;\n"
-            "  - 'seed' (целое число): Передается для фиксации случайности при сортировке выдачи примеров;\n"
-            "  - 'statFields' (массив строк): Список атрибутов для группировки статистики (например, ['created'] для распределения по годам). Передавать только если в resultType есть PORTRAIT_STATS;\n"
-            "  - 'similarCategories' (массив строк): Категории группировки похожих слов. Если группировка не требуется, передавать строго ['all']. Передавать только если в resultType есть PORTRAIT_SIMILAR."
-        ),
-        "requires_params": ["lemma", "corpus", "resultType"],
-        "optional_params": ["pos", "seed", "statFields", "similarCategories"]
-    },
-    "get_corpus_stats": {
-        "description": "Возвращает общую статистику по выбранному корпусу (число словоупотреблений, предложений и текстов). Параметр 'corpus' должен быть строго из CorpusTypeEnum.",
-        "requires_params": ["corpus"]
-    },
-    "get_sketch_difference": {
-        "description": "Возвращает результат сравнительного анализа скетчей двух разных слов (сопоставление их синтаксических контекстов). Параметр 'corpus' должен быть строго из CorpusTypeEnum.",
-        "requires_params": ["lemma_1", "lemma_2", "corpus", "pos"]
-    },
-    "get_simple_concordance": {
-        "description": "Выполняет базовый изолированный лексико-грамматический поиск конкорданса по одной лемме. Возвращает сырой список сниппетов контекста. Параметр 'corpus' должен быть строго из CorpusTypeEnum.",
-        "requires_params": ["lemma", "corpus"]
-    },
-    "get_corpus_config": {
-        "description": "Служебный инструмент. Возвращает системную конфигурацию и внутреннее устройство корпуса. Параметр 'corpus' должен быть строго из CorpusTypeEnum.",
-        "requires_params": ["corpus"]
-    },
-    "get_corpus_attributes": {
-        "description": "Служебный инструмент. Возвращает список всех доступных фильтров, признаков и мета-атрибутов для указанного корпуса. Параметр 'corpus' должен быть строго из CorpusTypeEnum.",
-        "requires_params": ["corpus"]
-    },
-    "get_attribute_values": {
-        "description": "Служебный инструмент. Возвращает полный справочник возможных значений для конкретного мета-атрибута корпуса. Параметр 'corpus' должен быть строго из CorpusTypeEnum.",
-        "requires_params": ["attr_name", "corpus"]
-    },
-    "check_auth": {
-        "description": "Проверяет текущий статус авторизации в системе НКРЯ (валидность токена Bearer).",
-        "requires_params": []
-    }
-}
+"""Canonical registry for NKRJA corpora, result types and tool contracts.
 
-# Строгий закрытый перечень доступных корпусов (CorpusTypeEnum) на основе точной OpenAPI спецификации НКРЯ
-CORPUS_TYPE_ENUM_DESCRIPTION = (
-    "СПРАВОЧНИК ДОСТУПНЫХ КОРПУСОВ (CorpusTypeEnum):\n"
-    "Передавать в параметр 'corpus' СТРОГО одно из следующих строковых значений:\n"
-    "  - MAIN: Основной корпус (базовый массив прозы, публицистики и научно-популярных текстов);\n"
-    "  - SYNTAX: Синтаксический корпус (тексты с глубокой разметкой синтаксических связей);\n"
-    "  - PAPER: Газетный корпус (статьи из центральных СМИ и периодической печати);\n"
-    "  - REGIONAL: Корпус региональной прессы (локальные СМИ регионов России);\n"
-    "  - PARA: Параллельный корпус (многоязычные переводы текстов);\n"
-    "  - MULTI: Мультимедийный корпус (масс-медиа, устная речь, аннотированная видеорядом);\n"
-    "  - SCHOOL: Школьный корпус (тексты из школьной программы и учебной литературы);\n"
-    "  - DIALECT: Диалектный корпус (записи речи носителей локальных диалектов и говоров);\n"
-    "  - POETIC: Поэтический корпус (стихотворные и рифмованные тексты, поэзия);\n"
-    "  - SPOKEN: Корпус устной речи (расшифровки публичных и бытовых устных разговоров);\n"
-    "  - ACCENT: Акцентологический корпус (тексты с проставленными знаками ударений);\n"
-    "  - MURCO: Мультимедийный русский корпус (дополнительные медиа-исследования);\n"
-    "  - MULTIPARC_RUS: Мультипарадигмальный русский корпус;\n"
-    "  - MULTIPARC: Мультипараллельные корпуса;\n"
-    "  - OLD_RUS: Древнерусский корпус (исторические тексты древнерусского периода);\n"
-    "  - BIRCHBARK: Корпус берестяных грамот (древние надписи на бересте);\n"
-    "  - MID_RUS: Среднерусский корпус (тексты старорусского/среднерусского периода);\n"
-    "  - ORTHLIB: Корпус церковнославянских текстов и православной литературы;\n"
-    "  - PANCHRON: Панхронический/диахронический корпус (для анализа изменений сквозь века);\n"
-    "  - KIDS: Корпус детских текстов и речевого онтогенеза (речь детей);\n"
-    "  - CLASSICS: Корпус русской классической литературы;\n"
-    "  - BLOGS: Корпус блогов (тексты из социальных сетей, постов, интернет-дневников);\n"
-    "  - EPIGRAPHICA: Корпус эпиграфики (надписи на твердых материалах, камнях, артефактах);\n"
-    "  - GICR: Генеральный интернет-корпус русского языка (огромный массив веб-текстов, форумов и интернет-коммуникаций)."
+Nothing outside this module should maintain its own spelling of a corpus or
+its own list of tool parameters.  Runtime compatibility observations live in
+``tools.compatibility`` and are deliberately kept separate from capability
+declarations: an incomplete probe is not an API contract.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+from types import MappingProxyType
+from typing import Any, Mapping
+
+
+class Corpus(str, Enum):
+    MAIN = "MAIN"
+    SYNTAX = "SYNTAX"
+    PAPER = "PAPER"
+    REGIONAL = "REGIONAL"
+    PARA = "PARA"
+    MULTI = "MULTI"
+    SCHOOL = "SCHOOL"
+    DIALECT = "DIALECT"
+    POETIC = "POETIC"
+    SPOKEN = "SPOKEN"
+    ACCENT = "ACCENT"
+    MURCO = "MURCO"
+    MULTIPARC_RUS = "MULTIPARC_RUS"
+    MULTIPARC = "MULTIPARC"
+    OLD_RUS = "OLD_RUS"
+    BIRCHBARK = "BIRCHBARK"
+    MID_RUS = "MID_RUS"
+    ORTHLIB = "ORTHLIB"
+    PANCHRON = "PANCHRON"
+    KIDS = "KIDS"
+    CLASSICS = "CLASSICS"
+    BLOGS = "BLOGS"
+    EPIGRAPHICA = "EPIGRAPHICA"
+    GICR = "GICR"
+
+
+class ResultType(str, Enum):
+    WORD_INFO = "PORTRAIT_WORD_INFO"
+    CONCORDANCE = "PORTRAIT_CONCORDANCE"
+    STATS = "PORTRAIT_STATS"
+    SKETCH = "PORTRAIT_SKETCH"
+    FREQUENCY = "PORTRAIT_FREQUENCY"
+    SIMILAR = "PORTRAIT_SIMILAR"
+    MORPHEME = "PORTRAIT_MORPHEME"
+    WORDFORMS = "PORTRAIT_WORDFORMS"
+    COGNATES = "PORTRAIT_COGNATES"
+    FIRST_MENTION = "PORTRAIT_FIRST_MENTION"
+    MEANING = "PORTRAIT_MEANING"
+
+
+@dataclass(frozen=True, slots=True)
+class ConditionalParameter:
+    name: str
+    required_for_result_types: frozenset[ResultType]
+    description: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCapability:
+    name: str
+    description: str
+    required_params: tuple[str, ...]
+    optional_params: tuple[str, ...] = ()
+    conditional_params: tuple[ConditionalParameter, ...] = ()
+
+    def validate_params(self, params: Mapping[str, Any]) -> tuple[str, ...]:
+        """Return all contract violations without mutating caller parameters."""
+
+        errors = [
+            f"missing required parameter: {name}"
+            for name in self.required_params
+            if name not in params or params[name] in (None, "", [])
+        ]
+        requested = {
+            ResultType(value)
+            for value in params.get("resultType", [])
+            if value in RESULT_TYPE_VALUES
+        }
+        for condition in self.conditional_params:
+            if requested & condition.required_for_result_types:
+                if params.get(condition.name) in (None, "", []):
+                    errors.append(
+                        f"{condition.name} is required for "
+                        + ", ".join(
+                            sorted(
+                                item.value
+                                for item in requested
+                                & condition.required_for_result_types
+                            )
+                        )
+                    )
+        allowed = {
+            *self.required_params,
+            *self.optional_params,
+            *(item.name for item in self.conditional_params),
+        }
+        errors.extend(
+            f"unknown parameter: {name}" for name in params if name not in allowed
+        )
+        return tuple(errors)
+
+
+CORPUS_ALIASES: Mapping[str, Corpus] = MappingProxyType(
+    {
+        "ОСНОВНОЙ": Corpus.MAIN,
+        "MAIN_CORPUS": Corpus.MAIN,
+        "ГАЗЕТНЫЙ": Corpus.PAPER,
+        "NEWSPAPER": Corpus.PAPER,
+        "ОБУЧАЮЩИЙ": Corpus.SCHOOL,
+        "EDUCATIONAL": Corpus.SCHOOL,
+        "ШКОЛЬНЫЙ": Corpus.SCHOOL,
+        "МУЛЬТИМЕДИЙНЫЙ": Corpus.MULTI,
+        "MULTIMEDIA": Corpus.MULTI,
+        "УСТНЫЙ": Corpus.SPOKEN,
+        "ПОЭТИЧЕСКИЙ": Corpus.POETIC,
+    }
 )
 
 
+RESULT_TYPE_AVAILABILITY: Mapping[ResultType, tuple[bool, str | None]] = (
+    MappingProxyType(
+        {
+            result_type: (
+                False,
+                "Тип объявлен API, но текущий backend НКРЯ его не реализует.",
+            )
+            if result_type in {ResultType.COGNATES, ResultType.MEANING}
+            else (True, None)
+            for result_type in ResultType
+        }
+    )
+)
+
+
+_WORD_PORTRAIT_CONDITIONAL = (
+    ConditionalParameter(
+        name="statFields",
+        required_for_result_types=frozenset({ResultType.STATS}),
+        description="Поля группировки для PORTRAIT_STATS.",
+    ),
+    ConditionalParameter(
+        name="similarCategories",
+        required_for_result_types=frozenset({ResultType.SIMILAR}),
+        description="Категории для PORTRAIT_SIMILAR; ['all'] без группировки.",
+    ),
+)
+
+
+TOOL_CAPABILITIES: Mapping[str, ToolCapability] = MappingProxyType(
+    {
+        "get_word_portrait": ToolCapability(
+            name="get_word_portrait",
+            description="Комплексный анализ одной леммы в одном корпусе.",
+            required_params=("lemma", "corpus", "resultType"),
+            optional_params=("pos", "seed"),
+            conditional_params=_WORD_PORTRAIT_CONDITIONAL,
+        ),
+        "get_corpus_stats": ToolCapability(
+            name="get_corpus_stats",
+            description="Общая статистика корпуса.",
+            required_params=("corpus",),
+        ),
+        "get_sketch_difference": ToolCapability(
+            name="get_sketch_difference",
+            description="Сравнение синтаксических контекстов двух лемм.",
+            required_params=("lemma_1", "lemma_2", "corpus", "pos"),
+        ),
+        "get_simple_concordance": ToolCapability(
+            name="get_simple_concordance",
+            description="Конкорданс одной леммы.",
+            required_params=("lemma", "corpus"),
+        ),
+        "get_corpus_config": ToolCapability(
+            name="get_corpus_config",
+            description="Конфигурация корпуса.",
+            required_params=("corpus",),
+        ),
+        "get_corpus_attributes": ToolCapability(
+            name="get_corpus_attributes",
+            description="Доступные метаатрибуты корпуса.",
+            required_params=("corpus",),
+        ),
+        "get_attribute_values": ToolCapability(
+            name="get_attribute_values",
+            description="Значения одного метаатрибута корпуса.",
+            required_params=("attr_name", "corpus"),
+        ),
+        "get_lex_gramm_search_form": ToolCapability(
+            name="get_lex_gramm_search_form",
+            description="Описание формы лексико-грамматического поиска.",
+            required_params=("corpus",),
+        ),
+        "check_auth": ToolCapability(
+            name="check_auth",
+            description="Проверка авторизации НКРЯ.",
+            required_params=(),
+        ),
+    }
+)
+
+# Transitional dictionary shape consumed by the current prompts/planners.
+CAPABILITY_REGISTRY = MappingProxyType(
+    {
+        name: {
+            "description": capability.description,
+            "requires_params": list(capability.required_params),
+            "optional_params": [
+                *capability.optional_params,
+                *(item.name for item in capability.conditional_params),
+            ],
+            "conditional_params": {
+                item.name: sorted(
+                    result_type.value
+                    for result_type in item.required_for_result_types
+                )
+                for item in capability.conditional_params
+            },
+        }
+        for name, capability in TOOL_CAPABILITIES.items()
+    }
+)
+
+RESULT_TYPE_VALUES = frozenset(item.value for item in ResultType)
+CORPUS_VALUES = frozenset(item.value for item in Corpus)
+CORPUS_TYPE_ENUM_DESCRIPTION = (
+    "СПРАВОЧНИК ДОСТУПНЫХ КОРПУСОВ (CorpusTypeEnum):\n"
+    "Передавать строго одно из значений: "
+    + ", ".join(item.value for item in Corpus)
+)
+
+
+def normalize_corpus(value: str | Corpus | None) -> Corpus:
+    normalized = str(value.value if isinstance(value, Corpus) else value or "MAIN")
+    normalized = normalized.strip().upper()
+    normalized = CORPUS_ALIASES.get(normalized, normalized)
+    try:
+        return normalized if isinstance(normalized, Corpus) else Corpus(normalized)
+    except ValueError as error:
+        raise ValueError(f"unknown NKRJA corpus: {value!r}") from error
+
 
 def get_registry_description() -> str:
-    descriptions = [CORPUS_TYPE_ENUM_DESCRIPTION, "\nСПИСОК ДОСТУПНЫХ ИНСТРУМЕНТОВ:\n" + "=" * 30]
+    corpus_lines = ", ".join(item.value for item in Corpus)
+    result_lines = []
+    for result_type in ResultType:
+        available, reason = RESULT_TYPE_AVAILABILITY[result_type]
+        suffix = "доступен" if available else f"недоступен: {reason}"
+        result_lines.append(f"- {result_type.value}: {suffix}")
 
-    for tool, info in CAPABILITY_REGISTRY.items():
-        desc = info['description']
+    tool_lines = []
+    for capability in TOOL_CAPABILITIES.values():
+        required = ", ".join(capability.required_params) or "нет"
+        optional = ", ".join(capability.optional_params) or "нет"
+        conditions = "; ".join(
+            f"{item.name} для "
+            + ", ".join(sorted(value.value for value in item.required_for_result_types))
+            for item in capability.conditional_params
+        ) or "нет"
+        tool_lines.append(
+            f"Инструмент {capability.name}: {capability.description}\n"
+            f"Обязательные: {required}. Опциональные: {optional}. "
+            f"Условные: {conditions}."
+        )
 
-        # Динамически вклеиваем матрицу совместимости только для word_portrait
-        if tool == "get_word_portrait":
-            compatibility_str = "\n\nВНИМАНИЕ! КРОСС-СОВМЕСТИМОСТЬ КОРПУСОВ И resultType:\nAPI поддерживает строго определенные комбинации. ТЕБЕ ЗАПРЕЩЕНО запрашивать resultType для корпусов, которых нет в списке ниже:\n"
-            for rt, corpora in RESULTTYPE_CORPUS_WHITELIST.items():
-                if corpora:  # показываем только те, где есть хотя бы один корпус
-                    compatibility_str += f"  - {rt}: ТОЛЬКО для {', '.join(corpora)}\n"
-            desc += compatibility_str
+    return (
+        "КОРПУСЫ НКРЯ:\n"
+        + corpus_lines
+        + "\n\nТИПЫ WORD PORTRAIT:\n"
+        + "\n".join(result_lines)
+        + "\n\nИНСТРУМЕНТЫ:\n"
+        + "\n\n".join(tool_lines)
+    )
 
-        req = f"Обязательные параметры: {info['requires_params']}"
-        opt = f"Опциональные параметры: {info.get('optional_params', [])}" if "optional_params" in info else "Опциональных параметров нет"
-        descriptions.append(f"Инструмент: {tool}\nОписание: {desc}\n{req}\n{opt}\n" + "-" * 40)
 
-    return "\n\n".join(descriptions)
+__all__ = [
+    "CAPABILITY_REGISTRY",
+    "CORPUS_ALIASES",
+    "CORPUS_TYPE_ENUM_DESCRIPTION",
+    "CORPUS_VALUES",
+    "RESULT_TYPE_AVAILABILITY",
+    "RESULT_TYPE_VALUES",
+    "TOOL_CAPABILITIES",
+    "ConditionalParameter",
+    "Corpus",
+    "ResultType",
+    "ToolCapability",
+    "get_registry_description",
+    "normalize_corpus",
+]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+import time
 from collections.abc import Mapping
 from typing import Any
 
@@ -148,11 +149,23 @@ def start_turn_node(
         "hypotheses": [],
         "open_questions": [],
         "iteration_count": 0,
+        "research_started_at": time.time(),
         "budgets": {
             "max_iterations": settings.max_research_iterations,
-            "max_actions": settings.max_research_iterations * settings.max_concurrent_requests,
-            "max_evidence_items": 100,
+            "max_branches": settings.max_research_branches,
+            "max_actions_per_branch": settings.max_actions_per_branch,
+            "max_requests_per_iteration": settings.max_requests_per_iteration,
+            "max_external_calls": settings.max_external_calls,
+            "max_wall_time_seconds": settings.research_wall_time_seconds,
+            "max_evidence_items": settings.max_evidence_items,
             "max_context_chars": settings.evidence_context_budget_chars,
+        },
+        "budget_usage": {
+            "branches": 1,
+            "actions": 0,
+            "external_calls": 0,
+            "evidence_items": 0,
+            "context_chars": 0,
         },
         "evidence": reset_accumulator(),
         "facts": reset_accumulator(),

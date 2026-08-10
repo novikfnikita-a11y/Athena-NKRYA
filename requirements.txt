@@ -8,6 +8,8 @@ python-dotenv
 pydantic
  
 # HTTP-клиент к API НКРЯ
+httpx
+# Временная совместимость probe_corpus_resulttype_matrix.py до этапа 6.
 requests
  
 # логирование

@@ -35,9 +35,21 @@ class SafeError(TypedDict):
 
 class ResearchBudgets(TypedDict):
     max_iterations: int
-    max_actions: int
+    max_branches: int
+    max_actions_per_branch: int
+    max_requests_per_iteration: int
+    max_external_calls: int
+    max_wall_time_seconds: float
     max_evidence_items: int
     max_context_chars: int
+
+
+class ResearchBudgetUsage(TypedDict):
+    branches: int
+    actions: int
+    external_calls: int
+    evidence_items: int
+    context_chars: int
 
 
 class ConversationTurn(TypedDict):
@@ -93,14 +105,16 @@ class ResearchState(TypedDict, total=False):
     branch_id: str
     batch_id: str
     iteration_count: int
+    research_started_at: float
     budgets: ResearchBudgets
+    budget_usage: ResearchBudgetUsage
 
     # Truly cumulative research-local channels. Lifecycle resets them explicitly.
     evidence: Annotated[
         list[EvidenceArtifact | dict[str, Any]],
         merge_evidence,
     ]
-    facts: Annotated[list[Fact | dict[str, Any] | str], merge_facts]
+    facts: Annotated[list[Fact | dict[str, Any]], merge_facts]
     deductions: Annotated[list[str], merge_unique_text]
     completed_actions: Annotated[
         list[ActionCall | dict[str, Any]],
@@ -131,6 +145,7 @@ class ResearchState(TypedDict, total=False):
 __all__ = [
     "ConversationTurn",
     "ResearchBudgets",
+    "ResearchBudgetUsage",
     "ResearchSnapshot",
     "ResearchState",
     "SafeError",
