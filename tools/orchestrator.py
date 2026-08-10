@@ -6,8 +6,6 @@ from whitelist_generated import RESULTTYPE_CORPUS_WHITELIST
 from utils.trace import emit_trace
 from langsmith import traceable  # НОВОЕ: Для параллельного логирования шага в LangSmith
 
-client = NKRJAClient()
-
 RESPONSE_COMPRESSORS = {
     "get_word_portrait": compress_word_portrait_response,
 }
@@ -37,6 +35,7 @@ def api_orchestrator_node(state: ResearchState):
             "action_params": {}
         }
 
+    client = NKRJAClient()
     new_evidence = []
 
     for item in planned_actions:

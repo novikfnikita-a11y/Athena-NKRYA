@@ -1,13 +1,44 @@
-import requests
 import json
-from app.config import NKRJA_API_KEY
+from typing import Any
+
+import requests
 from langsmith import traceable  # НОВОЕ: Импорт трейсера для низкоуровневых запросов
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+from app.config import Settings, get_settings
+
+
+def _build_session(max_retries: int) -> requests.Session:
+    session = requests.Session()
+    retry_policy = Retry(
+        total=max_retries,
+        connect=max_retries,
+        read=max_retries,
+        status=max_retries,
+        allowed_methods=None,
+        status_forcelist=(429, 500, 502, 503, 504),
+        backoff_factor=0.5,
+        respect_retry_after_header=True,
+    )
+    adapter = HTTPAdapter(max_retries=retry_policy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
 
 class NKRJAClient:
-    def __init__(self):
-        self.base_url = "https://ruscorpora.ru"
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        session: Any | None = None,
+    ):
+        current = settings or get_settings()
+        self.base_url = current.nkrja_base_url
+        self.timeout = current.http_timeout_seconds
+        self.session = session or _build_session(current.http_max_retries)
         self.headers = {
-            "Authorization": f"Bearer {NKRJA_API_KEY}",
+            "Authorization": f"Bearer {current.require_nkrja_api_key()}",
             "Content-Type": "application/json"
         }
 
@@ -16,7 +47,12 @@ class NKRJAClient:
     def _make_get_request(self, endpoint: str, param_name: str, payload: dict) -> dict:
         url = f"{self.base_url}{endpoint}"
         params = {param_name: json.dumps(payload, ensure_ascii=False)} if payload else {}
-        response = requests.get(url, headers=self.headers, params=params)
+        response = self.session.get(
+            url,
+            headers=self.headers,
+            params=params,
+            timeout=self.timeout,
+        )
         response.raise_for_status()
         return response.json() if response.text else {"status": "ok"}
 
@@ -25,7 +61,12 @@ class NKRJAClient:
     def _make_post_request(self, endpoint: str, payload: dict) -> dict:
         """вспомогательный метод для выполнения POST-запросов (требуется для конкорданса)"""
         url = f"{self.base_url}{endpoint}"
-        response = requests.post(url, headers=self.headers, json=payload)
+        response = self.session.post(
+            url,
+            headers=self.headers,
+            json=payload,
+            timeout=self.timeout,
+        )
         response.raise_for_status()
         return response.json() if response.text else {"status": "ok"}
 
@@ -131,6 +172,10 @@ class NKRJAClient:
 
     def check_auth(self) -> dict:
         url = f"{self.base_url}/api/v1/auth/check-authenticated/"
-        response = requests.get(url, headers=self.headers)
+        response = self.session.get(
+            url,
+            headers=self.headers,
+            timeout=self.timeout,
+        )
         response.raise_for_status()
         return {"is_authenticated": response.json()}

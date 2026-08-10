@@ -1,31 +1,23 @@
-# LLM/client.py
-import os
-from dotenv import load_dotenv
+"""Factory for the configured VseGPT chat model."""
+
+from __future__ import annotations
+
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-load_dotenv()
-VSEGPT_API_KEY = os.getenv("VSEGPT_API_KEY")
+from app.config import Settings, get_settings
 
 
-def get_llm():
+def get_llm(settings: Settings | None = None) -> ChatOpenAI:
+    """Build an LLM client only when a graph node actually needs one."""
 
-    if not VSEGPT_API_KEY:
-        raise ValueError("API ключ VSEGPT_API_KEY не найден в .env!")
-
-    base_model = "deepseek/deepseek-chat"
-
-
-        #  :nojsonencode отключает принудительное экранирование кириллицы.
-            #     в логах и ответах будет чистый читаемый русский текст,
-    #    что защитит регулярные выражения в узле evidence aggregator от сбоев парсинга.
-    #  :x-title --передает имя нашего приложения для красивого дашборда статистики
-    model_with_modifiers = f"{base_model}:nojsonencode:x-title=NKRJA_Research_Agent"
-
+    current = settings or get_settings()
     return ChatOpenAI(
-        model=model_with_modifiers,
-        api_key=SecretStr(VSEGPT_API_KEY),
-        base_url="https://api.vsegpt.ru/v1",
-        max_tokens=2048,
-        temperature=0.2
+        model=current.vsegpt_model,
+        api_key=SecretStr(current.require_vsegpt_api_key()),
+        base_url=current.vsegpt_base_url,
+        max_tokens=current.llm_max_output_tokens,
+        temperature=current.llm_temperature,
+        timeout=current.http_timeout_seconds,
+        max_retries=current.http_max_retries,
     )
