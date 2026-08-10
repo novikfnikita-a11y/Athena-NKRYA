@@ -153,10 +153,12 @@ def pytest_configure(config: pytest.Config) -> None:
     _SESSION_CONFIGURED = True
 
 
-def pytest_unconfigure(_config: pytest.Config) -> None:
+def pytest_unconfigure(config: pytest.Config) -> None:
     """Restore process state for callers embedding pytest."""
 
     global _SESSION_CONFIGURED
+
+    del config
 
     time_module.time = _ORIGINAL_TIME
     uuid_module.uuid4 = _ORIGINAL_UUID4
