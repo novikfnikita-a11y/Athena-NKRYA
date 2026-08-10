@@ -34,7 +34,9 @@ def api_orchestrator_node(state: ResearchState):
         return {
             "planned_actions": [],
             "next_action": "",
-            "action_params": {}
+            "action_params": {},
+            "last_evidence_batch": []
+
         }
 
     new_evidence = []
@@ -194,6 +196,9 @@ def api_orchestrator_node(state: ResearchState):
 
     return {
         "evidence": state.get("evidence", []) + new_evidence,
+        # НОВОЕ: точный срез evidence, добавленных именно в этом вызове (включая System_Safeguard),
+        # чтобы evidence_aggregator не гадал границы батча по длине planned_actions
+        "last_evidence_batch": new_evidence,
         "next_action": "",
-        "action_params": {}
+        "action_params": {},
     }

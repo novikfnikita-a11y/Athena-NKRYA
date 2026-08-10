@@ -19,16 +19,15 @@ def evidence_aggregator_node(state: ResearchState, config : RunnableConfig):
             "planned_actions": []  # Гарантированная очистка на случай сбоя
         }
 
-    # ФИКС ОШИБКИ 1: Забираем размер батча из planned_actions.
-    # Очередь еще НЕ очищена в оркестраторе, поэтому мы точно знаем, сколько инструментов выполнилось.
-    planned_actions = state.get("planned_actions", [])
-    batch_size = len(planned_actions)
+    # ФИКС ОШИБКИ 1: Берём батч напрямую из last_evidence_batch, который orchestrator
+    # формирует явно (см. tools/orchestrator.py). Это единственный надёжный источник:
+    # planned_actions НЕ равен количеству добавленных evidence-записей, потому что
+    # на одно действие может быть добавлено 2 записи (System_Safeguard warning + результат).
+    current_batch_evidence = state.get("last_evidence_batch", [])
 
-    if batch_size == 0:
-        print("[Aggregator] Внимание: Очередь planned_actions пуста. Фоллбек на последний артефакт.")
-        current_batch_evidence = [state["evidence"][-1]]
-    else:
-        current_batch_evidence = state["evidence"][-batch_size:]
+    if not current_batch_evidence:
+        print("[Aggregator] Внимание: last_evidence_batch пуст. Фоллбек на последний артефакт.")
+        current_batch_evidence = [state["evidence"][-1]] if state.get("evidence") else []
 
     print(f"[Aggregator] Анализируем пакет из {len(current_batch_evidence)} ответов API.")
 
@@ -43,6 +42,10 @@ def evidence_aggregator_node(state: ResearchState, config : RunnableConfig):
 
         if ev.get("status") == "error":
             block += f"ОШИБКА ВЫПОЛНЕНИЯ: {ev.get('message')}\n"
+        elif ev.get("status") == "warning":
+            # System_Safeguard кладёт сюда именно message (напр. "удалены неподдерживаемые типы ..."),
+            # а не response — раньше эта ветка уходила в else и печатала json.dumps({}) == "{}"
+            block += f"ПРЕДУПРЕЖДЕНИЕ ЗАЩИТНОГО СЛОЯ: {ev.get('message')}\n"
         else:
             block += json.dumps(response, ensure_ascii=False, indent=2)
 
