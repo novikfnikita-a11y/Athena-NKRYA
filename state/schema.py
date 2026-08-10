@@ -16,6 +16,9 @@ class ResearchState(TypedDict):
     # "chat"     - уточняющий вопрос по уже собранным фактам, новые API-вызовы не нужны
     mode: Literal["research", "chat"]
 
+
+
+
     # план оркестрации
     research_plan: list[str]  # Общий пошаговый план от Планнера
     current_step_index: int  # На каком шаге плана мы сейчас находимся
@@ -39,6 +42,10 @@ class ResearchState(TypedDict):
     aggregator_reasoning: str
     missing_information: Annotated[list[str], operator.add]
 
+    # точный список evidence-записей, добавленных ИМЕННО в текущем проходе оркестратора.
+    # На одно planned_action может прийтись 2 записи (System_Safeguard warning + сам результат),
+    # поэтому len(planned_actions) не годится как размер батча — только это поле надёжно.
+    last_evidence_batch: list[dict]
     # история уже  выполненных действий
     completed_actions: Annotated[list[dict], operator.add]
 
